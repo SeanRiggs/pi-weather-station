@@ -1,1 +1,1 @@
-import("!style-loader!css-loader!~/styles/main.css");
+import("~/styles/main.css");

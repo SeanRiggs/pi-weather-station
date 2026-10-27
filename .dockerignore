@@ -1,0 +1,9 @@
+.git
+node_modules
+client/node_modules
+client/dist
+settings.json
+*.backup.json
+data
+test-results
+.env

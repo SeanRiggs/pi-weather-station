@@ -1,8 +1,8 @@
-import React, { createContext, useState } from "react";
+import React, { createContext, useState, useRef } from "react";
 import { getSettings } from "~/settings";
 import PropTypes from "prop-types";
 import { getCoordsFromApi } from "~/services/geolocation";
-import axios from "axios";
+import axios from "~/services/http";
 
 export const AppContext = createContext();
 
@@ -20,6 +20,7 @@ const MOUSE_HIDE_STORAGE_KEY = "mouseHide";
  * @returns {JSX.Element} Context provider
  */
 export function AppContextProvider({ children }) {
+  const requests = useRef({});
   const [weatherApiKey, setWeatherApiKey] = useState(null);
   const [mapApiKey, setMapApiKey] = useState(null);
   const [reverseGeoApiKey, setReverseGeoApiKey] = useState(null);
@@ -174,9 +175,10 @@ export function AppContextProvider({ children }) {
    * @param {String} coords.longitude
    */
   function setMapPosition(coords) {
-    updateCurrentWeatherData(coords);
-    updateHourlyWeatherData(coords);
-    updateDailyWeatherData(coords);
+    if (!coords) return;
+    setCurrentWeatherData(null);
+    setHourlyWeatherData(null);
+    setDailyWeatherData(null);
     setMapGeo(coords);
     setPanToCoords(coords);
   }
@@ -218,12 +220,14 @@ export function AppContextProvider({ children }) {
                 resolve(res);
               })
               .catch((err) => {
+                setSettingsMenuOpen(true);
                 reject(err);
               });
           }
         })
         .catch((err) => {
-          console.log("err!", err);
+          setSettingsMenuOpen(true);
+          reject(err);
         });
     });
   }
@@ -304,109 +308,21 @@ export function AppContextProvider({ children }) {
    *
    * @returns {Promise} hourly weather data
    */
-  function updateHourlyWeatherData(coords) {
-    setHourlyWeatherDataErr(null);
-    setHourlyWeatherDataErrMsg(null);
-    const { latitude, longitude } = coords;
-    const fields = [
-      "temperature",
-      "precipitationProbability",
-      "precipitationIntensity",
-      "windSpeed",
-    ].join("%2c");
-
-    const endTime = new Date(
-      new Date().getTime() + 60 * 60 * 23 * 1000
-    ).toISOString();
-
-    return new Promise((resolve, reject) => {
-      if (!coords) {
-        setHourlyWeatherDataErr(true);
-        return reject("No coords");
-      }
-      if (!weatherApiKey) {
-        setHourlyWeatherDataErr(true);
-        setSettingsMenuOpen(true);
-        return reject("Missing weather API key");
-      }
-
-      axios
-        .get(
-          `https://data.climacell.co/v4/timelines?location=${latitude}%2C${longitude}&fields=${fields}&timesteps=1h&apikey=${weatherApiKey}&endTime=${endTime}`
-        )
-        .then((res) => {
-          if (!res) {
-            return reject({ message: "No response" });
-          }
-          const { data } = res;
-          setHourlyWeatherData(data);
-          resolve(data);
-        })
-        .catch((err) => {
-          setHourlyWeatherDataErr(true);
-          if (err && err.message) {
-            setHourlyWeatherDataErrMsg(err.message);
-          }
-
-          reject(err);
-        });
-    });
+  function requestWeather(coords, kind, setData, setError, setMessage) {
+    const id = (requests.current[kind] || 0) + 1;
+    requests.current[kind] = id;
+    setError(null);
+    setMessage(null);
+    if (!coords) return Promise.reject(new Error("Choose a location in Settings."));
+    return axios.get("/api/weather", { params: { lat: coords.latitude, lon: coords.longitude, kind } })
+      .then(({ data }) => { if (requests.current[kind] === id) setData(data); return data; })
+      .catch(error => { if (requests.current[kind] === id) { setError(true); setMessage(error.message); } throw error; });
   }
-
-  /**
-   * Updates daily  weather data
-   *
-   * @param {Object} coords
-   * @param {Number} coords.latitude latitude
-   * @param {Number} coords.longitude longitude
-   *
-   * @returns {Promise} daily weather data
-   */
+  function updateHourlyWeatherData(coords) {
+    return requestWeather(coords, "hourly", setHourlyWeatherData, setHourlyWeatherDataErr, setHourlyWeatherDataErrMsg);
+  }
   function updateDailyWeatherData(coords) {
-    setDailyWeatherDataErr(null);
-    setDailyWeatherDataErrMsg(null);
-    const { latitude, longitude } = coords;
-    const fields = [
-      "temperature",
-      "precipitationProbability",
-      "precipitationIntensity",
-      "windSpeed",
-    ].join("%2c");
-
-    const endTime = new Date(
-      new Date().getTime() + 4 * 60 * 60 * 24 * 1000
-    ).toISOString();
-
-    return new Promise((resolve, reject) => {
-      if (!coords) {
-        setDailyWeatherDataErr(true);
-        return reject("No coords");
-      }
-      if (!weatherApiKey) {
-        setDailyWeatherDataErr(true);
-        setSettingsMenuOpen(true);
-        return reject("Missing weather API key");
-      }
-      axios
-        .get(
-          `https://data.climacell.co/v4/timelines?location=${latitude}%2C${longitude}&fields=${fields}&timesteps=1d&apikey=${weatherApiKey}&endTime=${endTime}`
-        )
-        .then((res) => {
-          if (!res) {
-            return reject({ message: "No response" });
-          }
-          const { data } = res;
-          setDailyWeatherData(data);
-          resolve(data);
-        })
-        .catch((err) => {
-          setDailyWeatherDataErr(true);
-          if (err && err.message) {
-            setDailyWeatherDataErrMsg(err.message);
-          }
-          reject(err);
-        });
-    });
+    return requestWeather(coords, "daily", setDailyWeatherData, setDailyWeatherDataErr, setDailyWeatherDataErrMsg);
   }
 
   function updateSunriseSunset(coords) {
@@ -452,51 +368,7 @@ export function AppContextProvider({ children }) {
    * @returns {Promise} current weather data
    */
   function updateCurrentWeatherData(coords) {
-    setCurrentWeatherDataErr(null);
-    setCurrentWeatherDataErrMsg(null);
-    const { latitude, longitude } = coords;
-
-    const fields = [
-      "temperature",
-      "humidity",
-      "windSpeed",
-      "precipitationIntensity",
-      "precipitationType",
-      "precipitationProbability",
-      "cloudCover",
-      "weatherCode",
-    ].join("%2c");
-    return new Promise((resolve, reject) => {
-      if (!coords) {
-        setCurrentWeatherDataErr(true);
-        return reject("No coords");
-      }
-      if (!weatherApiKey) {
-        setCurrentWeatherDataErr(true);
-        setSettingsMenuOpen(true);
-        return reject("Missing weather API key");
-      }
-
-      axios
-        .get(
-          `https://data.climacell.co/v4/timelines?location=${latitude}%2C${longitude}&fields=${fields}&timesteps=current&apikey=${weatherApiKey}`
-        )
-        .then((res) => {
-          if (!res) {
-            return reject({ message: "No response" });
-          }
-          const { data } = res;
-          setCurrentWeatherData(data);
-          resolve(data);
-        })
-        .catch((err) => {
-          setCurrentWeatherDataErr(true);
-          if (err && err.message) {
-            setCurrentWeatherDataErrMsg(err.message);
-          }
-          reject(err);
-        });
-    });
+    return requestWeather(coords, "current", setCurrentWeatherData, setCurrentWeatherDataErr, setCurrentWeatherDataErrMsg);
   }
 
   /**
@@ -543,11 +415,16 @@ export function AppContextProvider({ children }) {
         })
         .then((res) => {
           resolve(res);
-          setMapApiKey(mapsKey);
-          setWeatherApiKey(weatherKey);
-          setReverseGeoApiKey(geoKey);
-          setCustomLat(lat);
-          setCustomLon(lon);
+          setMapApiKey(res.data.mapApiKey);
+          setWeatherApiKey(res.data.weatherApiKey);
+          setReverseGeoApiKey(res.data.reverseGeoApiKey);
+          setCustomLat(res.data.startingLat);
+          setCustomLon(res.data.startingLon);
+          if (res.data.startingLat !== "" && res.data.startingLon !== "") {
+            const coords = { latitude: Number(res.data.startingLat), longitude: Number(res.data.startingLon) };
+            setBrowserGeo(coords);
+            setMapPosition(coords);
+          }
         })
         .catch((err) => {
           reject(err);

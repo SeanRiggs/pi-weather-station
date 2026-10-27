@@ -1,0 +1,70 @@
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const { createApp } = require('../server');
+const fixture = require('./fixtures.cjs');
+(async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'weather-ui-'));
+  const app = createApp({ settingsFile: path.join(dir, 'settings.json'), providerOptions: { fetchImpl: async (url, init) => new Response(JSON.stringify(fixture.response(url, init))) } });
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_PATH ? { executablePath: process.env.BROWSER_PATH } : {}) });
+    const context = await browser.newContext({ viewport: { width: 800, height: 480 }, geolocation: { latitude: 0, longitude: 0 }, permissions: ['geolocation'] });
+    const page = await context.newPage();
+    const errors = [], requests = [];
+    page.on('pageerror', e => errors.push(e.message));
+    page.on('request', r => requests.push(r.url()));
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64');
+    await page.route('**/*', route => {
+      const url = route.request().url();
+      if (url.startsWith(base)) return route.continue();
+      if (url.startsWith('https://api.sunrise-sunset.org/')) return route.fulfill({ json: { results: { sunrise: '2026-10-27T06:00:00Z', sunset: '2026-10-27T18:00:00Z' }, status: 'OK' } });
+      if (url.startsWith('https://api.mapbox.com/') || url.startsWith('https://tilecache.rainviewer.com/')) return route.fulfill({ contentType: 'image/png', body: png });
+      return route.abort(); // No real providers, account keys, or external CDN access in UI tests.
+    });
+    await page.goto(base);
+    await page.getByLabel('TOMORROW.IO API KEY', { exact: true }).fill('private-weather-key');
+    await page.getByLabel('MAPBOX PUBLIC TOKEN (pk.)', { exact: true }).fill('pk.fixture-map-token');
+    await page.getByLabel('LOCATIONIQ API KEY (OPTIONAL)', { exact: true }).fill('private-location-key');
+    await page.getByLabel('CUSTOM STARTING LATITUDE', { exact: true }).fill('0');
+    await page.getByLabel('CUSTOM STARTING LONGITUDE', { exact: true }).fill('0');
+    await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+    await page.getByText('Fixture City, Test', { exact: false }).waitFor();
+    await page.getByText('Clear', { exact: true }).waitFor();
+    await page.locator('canvas').nth(1).waitFor();
+    assert.equal(await page.locator('canvas').count(), 2);
+    await page.waitForFunction(() => document.querySelectorAll('.leaflet-tile-loaded').length > 0);
+    assert.ok(requests.some(u => /\/256\/7\/.*\/2\/1_1.png/.test(u)), 'radar must use max native zoom 7 and Universal Blue');
+    assert.ok(!requests.some(u => u.includes('private-weather-key') || u.includes('private-location-key')), 'private keys must never be in browser request URLs');
+    assert.ok(!requests.some(u => /climacell|api.tomorrow.io|locationiq|unpkg/.test(u)));
+    await fs.mkdir('test-results', { recursive: true });
+    await page.screenshot({ path: 'test-results/dashboard-800x480.png' });
+    await page.getByRole('button', { name: 'Open settings', exact: true }).click();
+    assert.equal(await page.getByLabel('TOMORROW.IO API KEY', { exact: true }).inputValue(), '[configured]');
+    assert.equal(await page.getByLabel('LOCATIONIQ API KEY (OPTIONAL)', { exact: true }).inputValue(), '[configured]');
+    await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+    const saved = JSON.parse(await fs.readFile(path.join(dir, 'settings.json')));
+    assert.equal(saved.weatherApiKey, 'private-weather-key');
+    await page.reload();
+    await page.getByText('Clear', { exact: true }).waitFor();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth);
+    await page.screenshot({ path: 'test-results/dashboard-mobile.png', fullPage: true });
+    await page.getByRole('button', { name: 'Open settings', exact: true }).click();
+    await page.getByLabel('CUSTOM STARTING LATITUDE', { exact: true }).fill('999');
+    await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+    await page.getByRole('alert').waitFor();
+    assert.equal(JSON.parse(await fs.readFile(path.join(dir, 'settings.json'))).startingLat, '0');
+    assert.deepEqual(errors, []);
+    console.log('Browser checks passed: first-run setup, weather/charts, radar contract, masked keys, save/reload, mobile layout, invalid-setting feedback.');
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => { server.closeAllConnections(); server.close(resolve); });
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+})().catch(e => { console.error(e); process.exitCode = 1; });

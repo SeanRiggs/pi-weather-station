@@ -50,7 +50,8 @@ const LocationName = () => {
  */
 const getName = (res) => {
   // eslint-disable-next-line babel/camelcase
-  const { city, country, state, country_code, county, region } = res.address;
+  const { city: cityName, town, village, country, state, country_code, county, region } = res.address;
+  const city = cityName || town || village;
   // eslint-disable-next-line babel/camelcase
   if (country_code === "us") {
     if (city) {

@@ -1,0 +1,82 @@
+name: Test weather station
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm audit --omit=dev
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: npm --prefix client ci --ignore-scripts
+      - run: npm --prefix client audit --omit=dev
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: browser-screenshots
+          path: test-results/
+          if-no-files-found: ignore
+  docker:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            node: '24'
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            node: '24'
+          - runner: ubuntu-24.04
+            platform: linux/arm/v7
+            node: '22'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/setup-qemu-action@v4.4.0
+        if: matrix.platform == 'linux/arm/v7'
+        with:
+          platforms: arm
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Build the runtime image
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          NODE_VERSION: ${{ matrix.node }}
+        run: docker build --platform "$PLATFORM" --build-arg NODE_VERSION="$NODE_VERSION" -t pi-weather-station:ci .
+      - name: Check nonroot startup and settings persistence across recreation
+        run: |
+          set -eu
+          trap 'docker rm -f wx-ci >/dev/null 2>&1 || true; docker volume rm wx-ci-data >/dev/null 2>&1 || true' EXIT
+          docker volume create wx-ci-data
+          docker run -d --name wx-ci -p 127.0.0.1:8080:8080 -v wx-ci-data:/data pi-weather-station:ci
+          node tests/docker-smoke.cjs write
+          test "$(docker exec wx-ci id -u)" = 1000
+          docker rm -f wx-ci
+          docker run -d --name wx-ci -p 127.0.0.1:8080:8080 -v wx-ci-data:/data pi-weather-station:ci
+          node tests/docker-smoke.cjs read

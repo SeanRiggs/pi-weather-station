@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "~/services/http";
 
 /**
  * Gets coordinates from `navigator.geolocation` (currently not supported on aspbian Chromium)
@@ -14,7 +14,7 @@ export function getCoordsFromBrowser() {
         } else {
           resolve(pos.coords);
         }
-      });
+      }, reject, { timeout: 10000, maximumAge: 3600000 });
     } else {
       reject(null);
     }
@@ -27,27 +27,5 @@ export function getCoordsFromBrowser() {
  * @returns {Promise} coordinates
  */
 export function getCoordsFromApi() {
-  return new Promise((resolve, reject) => {
-    axios
-      .get("/geolocation")
-      .then((res) => {
-        const { latitude, longitude } = res.data;
-        if (
-          !latitude ||
-          (!latitude && latitude !== 0) ||
-          !longitude ||
-          (!longitude && longitude !== 0)
-        ) {
-          reject("Could not get lan/lon");
-        } else {
-          resolve({
-            latitude,
-            longitude,
-          });
-        }
-      })
-      .catch((err) => {        
-        reject(err);
-      });
-  });
+  return getCoordsFromBrowser().catch(() => axios.get("/geolocation").then(({ data }) => data));
 }
