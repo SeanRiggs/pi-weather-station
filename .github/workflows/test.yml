@@ -33,8 +33,11 @@ jobs:
       - run: npm --prefix client ci --ignore-scripts
       - run: npm --prefix client audit --omit=dev
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - name: Test with the runner's installed Chrome
+        run: |
+          export BROWSER_PATH="$(command -v google-chrome)"
+          test -x "$BROWSER_PATH"
+          npm run test:browser
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:

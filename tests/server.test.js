@@ -162,7 +162,7 @@ test('provider network timeout is bounded with a real local HTTP server', async 
 test('radar uses current past-frame metadata and caches it', async t => {
   const { request, calls } = await setup(t);
   const r = await request('/api/radar'); assert.equal(r.status, 200);
-  const frames = await r.json(); assert.equal(frames[0].url, 'https://tilecache.rainviewer.com/v2/radar/1609401600');
+  const frames = await r.json(); assert.equal(frames[0].url, 'https://tilecache.rainviewer.com/v2/radar/266d4e9ea76f');
   await request('/api/radar'); assert.equal(calls.length, 1); assert.ok(calls[0].url.endsWith('/public/weather-maps.json'));
 });
 test('radar parser rejects unknown hosts and empty frames', () => {
@@ -208,4 +208,12 @@ test('migration helper rejects malformed exports without creating settings', asy
   const r = spawnSync(process.execPath, [path.join(__dirname, '../scripts/import-settings.js'), source], { env: { ...process.env, SETTINGS_FILE: target }, encoding: 'utf8' });
   assert.equal(r.status, 1); assert.ok(!r.stderr.includes('private-key'));
   await assert.rejects(fs.stat(target), { code: 'ENOENT' });
+});
+
+test('radar paths are opaque IDs, not necessarily frame timestamps', () => {
+  const base = { host: 'https://tilecache.rainviewer.com', radar: { past: [{ time: 1793067600, path: '/v2/radar/266d4e9ea76f' }] } };
+  assert.equal(radarFrames(base)[0].url, 'https://tilecache.rainviewer.com/v2/radar/266d4e9ea76f');
+  for (const path of ['/v2/radar/../private', '/v2/radar/id?url=evil', '//evil.test/frame']) {
+    assert.throws(() => radarFrames({ ...base, radar: { past: [{ time: 1793067600, path }] } }));
+  }
 });

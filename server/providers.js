@@ -8,7 +8,7 @@ function coordinates(query) {
 }
 function radarFrames(data) {
   if (data?.host !== 'https://tilecache.rainviewer.com' || !Array.isArray(data?.radar?.past)) throw new AppError(502, 'Radar data is unavailable.');
-  const frames = data.radar.past.filter(f => Number.isSafeInteger(f.time) && f.time > 0 && /^\/v2\/radar\/\d+$/.test(f.path)).slice(-13);
+  const frames = data.radar.past.filter(f => Number.isSafeInteger(f.time) && f.time > 0 && /^\/v2\/radar\/[A-Za-z0-9_-]{1,128}$/.test(f.path)).slice(-13);
   if (!frames.length) throw new AppError(502, 'No radar frames are available.');
   return frames.map(f => ({ time: f.time, url: `${data.host}${f.path}` }));
 }
