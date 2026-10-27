@@ -28,6 +28,8 @@ const WeatherInfo = () => {
     weatherApiKey,
     currentWeatherDataErr,
     currentWeatherDataErrMsg,
+    hourlyWeatherDataErr,
+    dailyWeatherDataErr,
     darkMode,
     setSettingsMenuOpen,
     currentWeatherData,
@@ -82,6 +84,7 @@ const WeatherInfo = () => {
   if (currentWeatherData) {
     return (
       <div className={styles.container}>
+        {currentWeatherDataErr || hourlyWeatherDataErr || dailyWeatherDataErr ? <div role="status" style={{ fontSize: 11 }}>An update failed. Some displayed data is from the previous successful update.</div> : null}
         <div className={styles.location}>
           <LocationName />
         </div>

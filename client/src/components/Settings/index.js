@@ -174,6 +174,7 @@ const SaveButton = ({ mapsKey, weatherKey, geoKey, lat, lon }) => {
   );
   const [saveError, setSaveError] = useState("");
   return (
+    <div>
     <div
       role="button"
       aria-label="Save settings"
@@ -192,10 +193,11 @@ const SaveButton = ({ mapsKey, weatherKey, geoKey, lat, lon }) => {
       }}
     >
       <div className={styles.label}>SAVE</div>
-      {saveError ? <div role="alert">{saveError}</div> : null}
       <div>
         <InlineIcon icon={roundSaveAlt} />
       </div>
+    </div>
+    {saveError ? <div role="alert" style={{ maxWidth: 200, fontSize: 12, marginTop: 8, overflowWrap: "anywhere" }}>{saveError}</div> : null}
     </div>
   );
 };

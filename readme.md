@@ -85,7 +85,7 @@ Private settings remain plaintext on the server's disk, readable by its account 
 
 The browser updates current weather every 10 minutes and hourly/daily charts every hour. Server caches use the same intervals per location; radar metadata is cached for 10 minutes. Panning to a new location may create new provider calls. Caches and provider backoff are in memory and reset when the server restarts, so they are not a quota guarantee.
 
-The server bounds provider JSON to 2 MiB and requests to 10 seconds; browser requests time out after 15 seconds. It does not expose raw provider errors, key-bearing URLs, or stack traces through the API. Missing keys, denied plans, or incomplete provider responses show an error rather than fabricated weather values. Location-name failures fall back to coordinates; radar failures keep the base map with an unavailable notice.
+The server bounds provider JSON to 2 MiB and requests to 10 seconds; browser requests time out after 15 seconds. It does not expose raw provider errors, key-bearing URLs, or stack traces through the API. Missing keys, denied plans, or incomplete provider responses show an error rather than fabricated weather values. After a failed refresh, retained values are marked as previous data. Location-name failures fall back to coordinates; radar failures keep the base map with an unavailable notice.
 
 Displayed clock/forecast labels use the browser's timezone; set the display device's timezone to match the location for a fixed kiosk. The dashboard does not provide severe-weather alerts or safety-critical forecasts.
 
