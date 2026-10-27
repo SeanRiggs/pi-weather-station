@@ -92,6 +92,8 @@
 
 .toggle-buttons {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   max-width: 900px;
 
   justify-content: space-between;
