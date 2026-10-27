@@ -19,6 +19,8 @@ const Settings = () => {
   const {
     settingsMenuOpen,
     weatherApiKey,
+    weatherProvider,
+    mapProvider,
     mapApiKey,
     reverseGeoApiKey,
     customLat,
@@ -28,6 +30,8 @@ const Settings = () => {
     saveMouseHide,
   } = useContext(AppContext);
 
+  const [weatherSource, setWeatherSource] = useState("open-meteo");
+  const [mapSource, setMapSource] = useState("osm");
   const [mapsKey, setMapsKey] = useState(null);
   const [weatherKey, setWeatherKey] = useState(null);
   const [geoKey, setGeoKey] = useState(null);
@@ -49,6 +53,8 @@ const Settings = () => {
   }, [
     mapApiKey,
     weatherApiKey,
+    weatherProvider,
+    mapProvider,
     reverseGeoApiKey,
     customLat,
     customLon,
@@ -58,12 +64,14 @@ const Settings = () => {
   ]);
 
   useEffect(() => {
+    setWeatherSource(weatherProvider || "open-meteo");
+    setMapSource(mapProvider || "osm");
     setMapsKey(mapApiKey || "");
     setWeatherKey(weatherApiKey || "");
     setGeoKey(reverseGeoApiKey || "");
     setLat(customLat == null ? "" : customLat);
     setLon(customLon == null ? "" : customLon);
-  }, [mapApiKey, weatherApiKey, reverseGeoApiKey, customLon, customLat, settingsMenuOpen]);
+  }, [mapApiKey, weatherApiKey, reverseGeoApiKey, customLon, customLat, weatherProvider, mapProvider, settingsMenuOpen]);
 
   return (
     <CSSTransition
@@ -74,7 +82,7 @@ const Settings = () => {
     >
       <div className={styles.container}>
         <div className={styles.header}>SETTINGS</div>
-        <div style={{ padding: "0 20px", fontSize: "12px" }}>Saved private keys appear as [configured]. Leave that text to keep a key, replace it to change the key, or clear it to remove the key.</div>
+        <div style={{ padding: "0 20px", fontSize: "12px" }}>Start with your location. Open-Meteo weather and OpenStreetMap need no accounts or keys for a personal home display.</div>
         <div
           className={styles.closeButton}
           onClick={() => {
@@ -85,38 +93,32 @@ const Settings = () => {
         </div>
         <div className={styles.settingsContainer}>
           <ToggleButtons />
-          <Input
-            label={"MAPBOX PUBLIC TOKEN (pk.)"}
-            val={mapsKey}
-            current={currentMapsKey}
-            cb={setMapsKey}
-            required={true}
-          />
-          <Input
-            label={"TOMORROW.IO API KEY"}
-            val={weatherKey}
-            current={currentWeatherKey}
-            cb={setWeatherKey}
-            required={true}
-          />
-          <Input
-            label={"LOCATIONIQ API KEY (OPTIONAL)"}
-            val={geoKey}
-            current={currentGeoKey}
-            cb={setGeoKey}
-          />
-          <Input
-            label={"CUSTOM STARTING LATITUDE"}
-            val={lat}
-            cb={setLat}
-            current={currentLat}
-          />
-          <Input
-            label={"CUSTOM STARTING LONGITUDE"}
-            val={lon}
-            cb={setLon}
-            current={currentLon}
-          />
+          <Input label="CUSTOM STARTING LATITUDE" val={lat} cb={setLat} current={currentLat} />
+          <Input label="CUSTOM STARTING LONGITUDE" val={lon} cb={setLon} current={currentLon} />
+          <p style={{ fontSize: 12 }}>Leave coordinates blank to use browser location permission. You can also click the map to explore.</p>
+          <div className={styles.settingsItem}>
+            <label htmlFor="weather-source">Weather provider</label>
+            <select id="weather-source" value={weatherSource} onChange={e => setWeatherSource(e.target.value)}>
+              <option value="open-meteo">Open-Meteo — no account</option>
+              <option value="tomorrow">Tomorrow.io — API key</option>
+            </select>
+            <p style={{ fontSize: 12 }}>Open-Meteo is free for personal, noncommercial use. <a href="https://open-meteo.com/en/terms" target="_blank" rel="noreferrer">Usage terms</a></p>
+          </div>
+          {weatherSource === "tomorrow" ? <Input label="TOMORROW.IO API KEY" val={weatherKey} current={currentWeatherKey} cb={setWeatherKey} required={true} /> : null}
+          <div className={styles.settingsItem}>
+            <label htmlFor="map-source">Map provider</label>
+            <select id="map-source" value={mapSource} onChange={e => setMapSource(e.target.value)}>
+              <option value="osm">OpenStreetMap — no account</option>
+              <option value="mapbox">Mapbox — public token</option>
+            </select>
+            <p style={{ fontSize: 12 }}>OpenStreetMap uses a standard street map in both themes. Public tiles are best-effort; no offline downloads.</p>
+          </div>
+          {mapSource === "mapbox" ? <Input label="MAPBOX PUBLIC TOKEN (pk.)" val={mapsKey} current={currentMapsKey} cb={setMapsKey} required={true} /> : null}
+          <details>
+            <summary>Optional location names and saved keys</summary>
+            <p style={{ fontSize: 12 }}>LocationIQ adds place names; otherwise coordinates are shown. Saved private keys appear as [configured]. Leave that text to keep a key. Switching providers retains your saved keys.</p>
+            <Input label="LOCATIONIQ API KEY (OPTIONAL)" val={geoKey} current={currentGeoKey} cb={setGeoKey} />
+          </details>
           <div className={styles.bottomButtonContainer}>
             <div>
               <div className={styles.label}>HIDE MOUSE</div>
@@ -131,6 +133,8 @@ const Settings = () => {
             </div>
             <div className={styles.saveButtonContainer}>
               <SaveButton
+                weatherSource={weatherSource}
+                mapSource={mapSource}
                 mapsKey={mapsKey}
                 weatherKey={weatherKey}
                 geoKey={geoKey}
@@ -158,7 +162,7 @@ export default Settings;
  * @param {String} [props.lon]
  * @returns {JSX.Element} Save button
  */
-const SaveButton = ({ mapsKey, weatherKey, geoKey, lat, lon }) => {
+const SaveButton = ({ mapsKey, weatherKey, geoKey, lat, lon, weatherSource, mapSource }) => {
   const { saveSettingsToJson, setSettingsMenuOpen, mouseHide } = useContext(
     AppContext
   );
@@ -173,7 +177,7 @@ const SaveButton = ({ mapsKey, weatherKey, geoKey, lat, lon }) => {
       }`}
       onClick={() => {
         setSaveError("");
-        saveSettingsToJson({ mapsKey, weatherKey, geoKey, lat, lon })
+        saveSettingsToJson({ mapsKey, weatherKey, geoKey, lat, lon, weatherSource, mapSource })
           .then(() => {
             setSettingsMenuOpen(false);
           })
@@ -193,6 +197,8 @@ const SaveButton = ({ mapsKey, weatherKey, geoKey, lat, lon }) => {
 };
 
 SaveButton.propTypes = {
+  weatherSource: PropTypes.string,
+  mapSource: PropTypes.string,
   mapsKey: PropTypes.string,
   weatherKey: PropTypes.string,
   geoKey: PropTypes.string,

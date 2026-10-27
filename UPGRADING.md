@@ -1,12 +1,20 @@
 # Upgrade to version 3
 
+## Version 3.0 → 3.1
+
+Rebuild/restart using the same settings volume. Existing Tomorrow.io and Mapbox keys continue selecting those providers when no explicit provider choice is stored. New installations default to Open-Meteo and OpenStreetMap, with no keys. To switch an existing installation, choose the providers in Settings and save; saved keys are retained. Do not replace an existing private settings file with the example file.
+
+The new optional fields are `weatherProvider` (`open-meteo` or `tomorrow`) and `mapProvider` (`osm` or `mapbox`). Open-Meteo's free endpoint is for noncommercial use. The map uses standard OSM streets in both themes. No Docker Hub tags are republished by this source update.
+
+## Earlier installations
+
 Back up your settings before replacing files, rebuilding, or pulling a different image. Stop the existing app while migrating; keep its data until you have verified the new dashboard. The repository update does not change a live deployment for you.
 
 ## Source installations
 
 1. Copy the existing `settings.json` to a private location outside the checkout. Do not commit it.
 2. Install a maintained Node 24 version (Node 22 is tested too), update the repository, and run `npm ci`, `npm --prefix client ci`, then `npm run build`.
-3. Retain only the supported settings keys: `weatherApiKey`, `mapApiKey`, `reverseGeoApiKey`, `startingLat`, and `startingLon`. Mapbox needs a public `pk.` token. Check the Tomorrow.io account/key and permissions; changing a hostname does not upgrade old service credentials.
+3. Retain only the supported settings keys: `weatherApiKey`, `mapApiKey`, `reverseGeoApiKey`, `startingLat`, `startingLon`, and the optional `weatherProvider`/`mapProvider` fields described above. Mapbox needs a public `pk.` token. Check the Tomorrow.io account/key and permissions; changing a hostname does not upgrade old service credentials.
 4. Place the settings file at the repository root or set `SETTINGS_FILE` to its private path. Make it readable/writable by the server account with mode `0600`.
 5. Run `npm start`, open the local URL, and verify location, weather, charts, radar, settings save/reload, and units. The app no longer launches a browser automatically.
 

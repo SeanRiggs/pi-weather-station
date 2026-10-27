@@ -47,7 +47,7 @@ const CurrentWeather = () => {
       weatherCode,
       windSpeed,
     } = weatherData;
-    const daylight = sunriseTime && sunsetTime ? isDaylight(new Date(sunriseTime), new Date(sunsetTime)) : true;
+    const daylight = typeof weatherData.isDay === "boolean" ? weatherData.isDay : sunriseTime && sunsetTime ? isDaylight(new Date(sunriseTime), new Date(sunsetTime)) : true;
     const { icon: weatherIcon, desc: weatherDesc } =
       parseWeatherCode(weatherCode, daylight) || {};
 
@@ -70,7 +70,7 @@ const CurrentWeather = () => {
                   icon={precipitationType === 2 ? snowIcon : rainIcon}
                 />
               </div>
-              <div>{precipitationProbability}%</div>
+              <div title={currentWeatherData.provider === "open-meteo" ? "Precipitation probability for the current forecast hour" : "Precipitation probability"}>{precipitationProbability}%</div>
             </div>
             <div className={styles.statItem}>
               <div>
@@ -97,7 +97,7 @@ const CurrentWeather = () => {
             </div>
           </div>
         </div>
-        <div className={styles.description}>{weatherDesc || ""}</div>
+        <div className={styles.description}>{weatherData.conditionText || weatherDesc || ""}</div>
       </div>
     );
   } else {

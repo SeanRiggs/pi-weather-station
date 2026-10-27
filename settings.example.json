@@ -1,4 +1,6 @@
 {
+  "weatherProvider": "open-meteo",
+  "mapProvider": "osm",
   "weatherApiKey": "",
   "mapApiKey": "",
   "reverseGeoApiKey": "",

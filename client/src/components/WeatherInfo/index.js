@@ -26,6 +26,7 @@ const WeatherInfo = () => {
     updateDailyWeatherData,
     mapGeo,
     weatherApiKey,
+    weatherProvider,
     currentWeatherDataErr,
     currentWeatherDataErrMsg,
     hourlyWeatherDataErr,
@@ -59,7 +60,7 @@ const WeatherInfo = () => {
 
   useEffect(() => {
     setErr(false);
-    if (!weatherApiKey) {
+    if (!weatherProvider) {
       getWeatherApiKey().catch((err) => {
         console.log("error getting weather api key:", err);
         setErr(true);
@@ -71,15 +72,15 @@ const WeatherInfo = () => {
         console.log("error getting reverse geo api key:", err);
       });
     }
-  }, [weatherApiKey, reverseGeoApiKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!weatherApiKey || !mapGeo) return;
+    if (!weatherProvider || !mapGeo) return;
     const callbacks = [currentWeatherUpdateCb, hourlyWeatherUpdateCb, dailyWeatherUpdateCb];
     const delays = [CURRENT_WEATHER_DATA_UPDATE_INTERVAL, HOURLY_WEATHER_DATA_UPDATE_INTERVAL, DAILY_WEATHER_DATA_UPDATE_INTERVAL];
     const timers = callbacks.map((cb, index) => { cb(); return setInterval(cb, delays[index]); });
     return () => timers.forEach(clearInterval);
-  }, [weatherApiKey, mapGeo]);
+  }, [weatherProvider, weatherApiKey, mapGeo]);
 
   if (currentWeatherData) {
     return (
@@ -97,7 +98,7 @@ const WeatherInfo = () => {
         <div className={styles.weatherChart}>
           <DailyChart />
         </div>
-        <div style={{ fontSize: 9, marginTop: 4 }}><a href="https://www.tomorrow.io/" target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Weather: Tomorrow.io</a> · <a href="https://sunrise-sunset.org/" target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Sunrise-Sunset</a>{reverseGeoApiKey ? <> · <a href="https://locationiq.com/" target="_blank" rel="noreferrer" style={{ color: "inherit" }}>LocationIQ</a></> : null}</div>
+        <div style={{ fontSize: 9, marginTop: 4 }}><a href={currentWeatherData.provider === "open-meteo" ? "https://open-meteo.com/" : "https://www.tomorrow.io/"} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Weather: {currentWeatherData.provider === "open-meteo" ? "Open-Meteo (model estimate)" : "Tomorrow.io"}</a> · <a href="https://sunrise-sunset.org/" target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Sunrise-Sunset</a>{reverseGeoApiKey ? <> · <a href="https://locationiq.com/" target="_blank" rel="noreferrer" style={{ color: "inherit" }}>LocationIQ</a></> : null}</div>
       </div>
     );
   } else if (currentWeatherData || currentWeatherDataErr || err) {
@@ -108,7 +109,7 @@ const WeatherInfo = () => {
         }`}
       >
         <div>Could not retrieve weather data.</div>
-        <div>Is your weather API key valid?</div>
+        <div>{weatherProvider === "tomorrow" ? "Check your connection and Tomorrow.io key." : "Check your connection or try again later."}</div>
         {currentWeatherDataErr ? (
           <div className={styles.message}>{currentWeatherDataErrMsg}</div>
         ) : null}

@@ -1,3 +1,4 @@
+const { openMeteoUrl, normalizeOpenMeteo } = require('./openMeteo');
 const { AppError } = require('./settingsCtrl');
 const FIELDS = ['temperature', 'humidity', 'windSpeed', 'precipitationIntensity', 'precipitationType', 'precipitationProbability', 'cloudCover', 'weatherCode'];
 function coordinates(query) {
@@ -61,6 +62,12 @@ class Providers {
     const kind = query.kind;
     if (!['current', 'hourly', 'daily'].includes(kind)) throw new AppError(400, 'Invalid forecast kind.');
     const settings = await this.store.read();
+    const provider = settings.weatherProvider || (settings.weatherApiKey ? 'tomorrow' : 'open-meteo');
+    if (provider === 'open-meteo') {
+      const data = await this.cached(JSON.stringify(['open-meteo', lat, lon]), 'api.open-meteo.com', 600000, async () =>
+        normalizeOpenMeteo(await this.json(openMeteoUrl(lat, lon))));
+      return data[kind];
+    }
     if (!settings.weatherApiKey) throw new AppError(422, 'Add your Tomorrow.io weather API key in Settings.');
     const fields = kind === 'current' ? FIELDS : ['temperature', 'precipitationProbability', 'precipitationIntensity', 'windSpeed'];
     const step = { current: 'current', hourly: '1h', daily: '1d' }[kind];
@@ -74,7 +81,7 @@ class Providers {
       const timeline = result?.data?.timelines?.find(t => t.timestep === step);
       const intervals = timeline?.intervals?.slice(0, kind === 'current' ? 1 : kind === 'hourly' ? 24 : 5);
       if (!intervals?.length || intervals.some(i => !Number.isFinite(Date.parse(i.startTime)) || fields.some(f => !Number.isFinite(i.values?.[f])))) throw new AppError(502, 'Provider returned incomplete weather data.');
-      return { data: { timelines: [{ timestep: step, intervals: intervals.map(i => ({ startTime: i.startTime, values: Object.fromEntries(fields.map(f => [f, i.values[f]])) })) }] } };
+      return { provider: 'tomorrow', data: { timelines: [{ timestep: step, intervals: intervals.map(i => ({ startTime: i.startTime, values: Object.fromEntries(fields.map(f => [f, i.values[f]])) })) }] } };
     });
   }
   async radar() {
