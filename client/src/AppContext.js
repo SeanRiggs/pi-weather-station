@@ -179,8 +179,8 @@ export function AppContextProvider({ children }) {
     setCurrentWeatherData(null);
     setHourlyWeatherData(null);
     setDailyWeatherData(null);
-    setMapGeo(coords);
-    setPanToCoords(coords);
+    setMapGeo({ ...coords });
+    setPanToCoords({ ...coords });
   }
 
   /**

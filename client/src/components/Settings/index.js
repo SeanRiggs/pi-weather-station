@@ -58,22 +58,12 @@ const Settings = () => {
   ]);
 
   useEffect(() => {
-    if (mapApiKey) {
-      setMapsKey(mapApiKey);
-    }
-    if (weatherApiKey) {
-      setWeatherKey(weatherApiKey);
-    }
-    if (reverseGeoApiKey) {
-      setGeoKey(reverseGeoApiKey);
-    }
-    if (customLat) {
-      setLat(customLat);
-    }
-    if (customLon) {
-      setLon(customLon);
-    }
-  }, [mapApiKey, weatherApiKey, reverseGeoApiKey, customLon, customLat]);
+    setMapsKey(mapApiKey || "");
+    setWeatherKey(weatherApiKey || "");
+    setGeoKey(reverseGeoApiKey || "");
+    setLat(customLat == null ? "" : customLat);
+    setLon(customLon == null ? "" : customLon);
+  }, [mapApiKey, weatherApiKey, reverseGeoApiKey, customLon, customLat, settingsMenuOpen]);
 
   return (
     <CSSTransition
