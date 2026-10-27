@@ -8,10 +8,11 @@ const base = 'http://127.0.0.1:8080';
   }
   assert.ok(ready, 'container did not become ready');
   if (process.argv[2] === 'write') {
-    const r = await fetch(base + '/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weatherApiKey: 'fixture-key', startingLat: '0', startingLon: '0' }) });
+    const r = await fetch(base + '/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weatherProvider: 'open-meteo', mapProvider: 'osm', weatherApiKey: 'fixture-key', startingLat: '0', startingLon: '0' }) });
     assert.equal(r.status, 200);
   }
   const data = await (await fetch(base + '/settings')).json();
+  assert.equal(data.weatherProvider, 'open-meteo'); assert.equal(data.mapProvider, 'osm');
   assert.equal(data.weatherApiKey, '[configured]'); assert.equal(data.startingLat, '0');
   const html = await (await fetch(base)).text();
   assert.match(html, /bundle\.[a-f0-9]+\.js/);

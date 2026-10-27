@@ -12,7 +12,7 @@ function createApp(options = {}) {
   const allowed = options.allowedHosts || (process.env.ALLOWED_HOSTS || 'localhost,127.0.0.1,[::1]').split(',').map(s => s.trim());
   if (allowed.some(h => !['localhost', '127.0.0.1', '[::1]'].includes(h)) && !password) throw new Error('Set DASHBOARD_PASSWORD before allowing additional hostnames or LAN addresses.');
   app.use((req, res, next) => {
-    res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY', 'Cache-Control': 'no-store' });
+    res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'X-Frame-Options': 'DENY', 'Cache-Control': 'no-store' });
     let host;
     try { host = new URL(`http://${req.headers.host}`).hostname; } catch { return res.sendStatus(400); }
     if (!allowed.includes(host)) return res.status(403).json({ message: 'Host is not allowed.' });

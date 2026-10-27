@@ -146,3 +146,6 @@
 .save-button-container {
   margin-top: 15px;
 }
+.settings-item select { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px; }
+.settings-container a { color: #b4dcff; }
+.settings-container summary { cursor: pointer; padding: 8px 0; }

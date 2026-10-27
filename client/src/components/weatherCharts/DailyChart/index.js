@@ -16,6 +16,7 @@ const createChartOptions = ({
   speedUnit,
   lengthUnit,
   altMode,
+  openMeteo,
 }) => {
   return {
     maintainAspectRatio: false,
@@ -29,8 +30,8 @@ const createChartOptions = ({
       display: true,
       text: `5 Day ${
         altMode
-          ? `Wind Speed / Precipitation (${lengthUnit})`
-          : `Temp / Precipitation`
+          ? `${openMeteo ? "Max Wind / Precip Total" : "Wind / Rain Rate"} (${lengthUnit}${openMeteo ? "" : "/h"})`
+          : openMeteo ? `Mean Temp / Max Precip Chance` : `Temp / Precipitation`
       }`,
       fontColor: fontColor(darkMode),
       fontFamily: "Rubik, sans-serif",
@@ -105,7 +106,7 @@ const mapChartData = ({
       const date = new Date(e.startTime);
       const adjustedTimestamp =
         date.getTime() + date.getTimezoneOffset() * 60 * 1000;
-      return format(new Date(adjustedTimestamp), "EEEEE");
+      return weatherData.provider === "open-meteo" ? format(date, "EEEEE") : format(new Date(adjustedTimestamp), "EEEEE");
     }),
     datasets: [
       {
@@ -129,10 +130,10 @@ const mapChartData = ({
         label: "Precipitation",
         data: data.map((e) => {
           const {
-            values: { precipitationIntensity, precipitationProbability },
+            values: { precipitationIntensity, precipitationAmount, precipitationProbability },
           } = e;
           return altMode
-            ? convertLength(precipitationIntensity, lengthUnit)
+            ? convertLength(weatherData.provider === "open-meteo" ? precipitationAmount : precipitationIntensity, lengthUnit)
             : precipitationProbability;
         }),
         yAxisID: "y-axis-2",
@@ -181,6 +182,7 @@ const DailyChart = () => {
 
       setChartOptionsCallback(
         createChartOptions({
+          openMeteo: dailyWeatherData.provider === "open-meteo",
           tempUnit,
           darkMode,
           lengthUnit,

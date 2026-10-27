@@ -36,6 +36,7 @@ const WeatherMap = ({ zoom, dark }) => {
     browserGeo,
     mapGeo,
     mapApiKey,
+    mapProvider,
     getMapApiKey,
     markerIsVisible,
     animateWeatherMap,
@@ -52,6 +53,8 @@ const WeatherMap = ({ zoom, dark }) => {
   );
 
   const [mapTimestamps, setMapTimestamps] = useState(null);
+  const [baseMapError, setBaseMapError] = useState(false);
+  useEffect(() => setBaseMapError(false), [mapProvider, mapApiKey]);
   const [radarError, setRadarError] = useState(false);
   const [mapTimestamp, setMapTimestamp] = useState(null);
   const [currentMapTimestampIdx, setCurrentMapTimestampIdx] = useState(0);
@@ -129,11 +132,11 @@ const WeatherMap = ({ zoom, dark }) => {
     }
   }, [currentMapTimestampIdx, animateWeatherMap, mapTimestamps]);
 
-  if (!hasVal(latitude) || !hasVal(longitude) || !zoom || !mapApiKey) {
+  if (!hasVal(latitude) || !hasVal(longitude) || !zoom || !mapProvider || (mapProvider === "mapbox" && !mapApiKey)) {
     return (
       <div className={`${styles.noMap} ${dark ? styles.dark : styles.light}`}>
         <div>Cannot retrieve map data.</div>
-        <div>Did you enter an API key?</div>
+        <div>Choose a location in Settings. Mapbox also needs a public token.</div>
       </div>
     );
   }
@@ -152,15 +155,27 @@ const WeatherMap = ({ zoom, dark }) => {
       onClick={mapClickHandler}
     >
       <AttributionControl position={"bottomleft"} />
-      <TileLayer
-        attribution='© <a href="https://www.mapbox.com/feedback/">Mapbox</a>'
+      {mapProvider === "mapbox" ? <TileLayer
+        key="mapbox"
+        onTileError={() => setBaseMapError(true)}
+        onTileLoad={() => setBaseMapError(false)}
+        attribution='© <a href="https://www.mapbox.com/feedback/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url={`https://api.mapbox.com/styles/v1/mapbox/${
           dark ? "dark-v11" : "light-v11"
         }/tiles/{z}/{x}/{y}?access_token={apiKey}`}
         apiKey={mapApiKey}
         tileSize={512}
         zoomOffset={-1}
-      />
+      /> : <TileLayer
+        key="osm"
+        attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · <a href="https://www.openstreetmap.org/fixthemap">Report a map issue</a>'
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        maxZoom={19}
+        keepBuffer={0}
+        updateWhenIdle={true}
+        onTileError={() => setBaseMapError(true)}
+        onTileLoad={() => setBaseMapError(false)}
+      />}
       {mapTimestamp ? (
         <TileLayer
           attribution='<a href="https://www.rainviewer.com/">RainViewer</a>'
@@ -174,6 +189,7 @@ const WeatherMap = ({ zoom, dark }) => {
           snow={1}
         />
       ) : null}
+      {baseMapError ? <div role="status" style={{ position: "absolute", top: 10, right: 10, zIndex: 1000, background: "#222", color: "white", padding: 6 }}>Base map unavailable. Weather remains available.</div> : null}
       {radarError ? <div role="status" style={{ position: "absolute", bottom: 30, left: 10, zIndex: 1000, background: "#222", color: "white", padding: 6 }}>Radar unavailable; retrying on the next update.</div> : null}
       {markerIsVisible && markerPosition ? (
         <Marker position={markerPosition} opacity={0.65}></Marker>
@@ -185,29 +201,6 @@ const WeatherMap = ({ zoom, dark }) => {
 WeatherMap.propTypes = {
   zoom: PropTypes.number.isRequired,
   dark: PropTypes.bool,
-};
-
-/**
- * Weather layer
- *
- * @param {Object} props
- * @param {String} props.layer
- * @param {String} props.weatherApiKey
- * @returns {JSX.Element} Weather layer
- */
-const WeatherLayer = ({ layer, weatherApiKey }) => {
-  return (
-    <TileLayer
-      attribution='&amp;copy <a href="https://openweathermap.org/">OpenWeather</a>'
-      url={`https://tile.openweathermap.org/map/${layer}/{z}/{x}/{y}.png?appid=${weatherApiKey}`}
-      apiKey
-    />
-  );
-};
-
-WeatherLayer.propTypes = {
-  layer: PropTypes.string.isRequired,
-  weatherApiKey: PropTypes.string,
 };
 
 /**

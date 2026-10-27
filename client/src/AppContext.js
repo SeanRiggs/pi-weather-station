@@ -21,6 +21,8 @@ const MOUSE_HIDE_STORAGE_KEY = "mouseHide";
  */
 export function AppContextProvider({ children }) {
   const requests = useRef({});
+  const [weatherProvider, setWeatherProvider] = useState(null);
+  const [mapProvider, setMapProvider] = useState(null);
   const [weatherApiKey, setWeatherApiKey] = useState(null);
   const [mapApiKey, setMapApiKey] = useState(null);
   const [reverseGeoApiKey, setReverseGeoApiKey] = useState(null);
@@ -241,11 +243,8 @@ export function AppContextProvider({ children }) {
     return new Promise((resolve, reject) => {
       getSettings()
         .then((res) => {
-          if (!res || (res && !res.weatherApiKey)) {
-            setSettingsMenuOpen(true);
-            return reject("Weather API key missing");
-          }
-          setWeatherApiKey(res && res.weatherApiKey ? res.weatherApiKey : null);
+          setWeatherProvider(res.weatherProvider);
+          setWeatherApiKey(res.weatherApiKey || "");
           resolve();
         })
         .catch((err) => {
@@ -263,11 +262,8 @@ export function AppContextProvider({ children }) {
     return new Promise((resolve, reject) => {
       getSettings()
         .then((res) => {
-          if (!res || (res && !res.mapApiKey)) {
-            setSettingsMenuOpen(true);
-            return reject("Map API key missing!");
-          }
-          setMapApiKey(res && res.mapApiKey ? res.mapApiKey : null);
+          setMapProvider(res.mapProvider);
+          setMapApiKey(res.mapApiKey || "");
           resolve();
         })
         .catch((err) => {
@@ -403,10 +399,12 @@ export function AppContextProvider({ children }) {
    * @param {String} [settings.lon]
    * @returns {Promise} Resolves when complete
    */
-  function saveSettingsToJson({ mapsKey, weatherKey, geoKey, lat, lon }) {
+  function saveSettingsToJson({ mapsKey, weatherKey, geoKey, lat, lon, weatherSource, mapSource }) {
     return new Promise((resolve, reject) => {
       axios
         .put("/settings", {
+          weatherProvider: weatherSource,
+          mapProvider: mapSource,
           weatherApiKey: weatherKey,
           mapApiKey: mapsKey,
           reverseGeoApiKey: geoKey,
@@ -415,6 +413,8 @@ export function AppContextProvider({ children }) {
         })
         .then((res) => {
           resolve(res);
+          setWeatherProvider(res.data.weatherProvider);
+          setMapProvider(res.data.mapProvider);
           setMapApiKey(res.data.mapApiKey);
           setWeatherApiKey(res.data.weatherApiKey);
           setReverseGeoApiKey(res.data.reverseGeoApiKey);
@@ -433,6 +433,8 @@ export function AppContextProvider({ children }) {
   }
 
   const defaultContext = {
+    weatherProvider,
+    mapProvider,
     weatherApiKey,
     getWeatherApiKey,
     reverseGeoApiKey,

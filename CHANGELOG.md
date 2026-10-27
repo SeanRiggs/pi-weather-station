@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.1.0 — 2026-10-28
+
+- Add a no-account default: Open-Meteo weather and OpenStreetMap base maps, alongside public past radar and sunrise/sunset.
+- Preserve existing Tomorrow.io/Mapbox selections and saved credentials; add explicit provider choices and simplify Settings around location first.
+- Share one validated Open-Meteo response across current/hourly/daily views with caching, deduplication, and rate-limit backoff.
+- Convert WMO conditions and metric units deliberately; label model estimates and daily aggregates, reject incomplete data, and preserve unknown conditions.
+- Retain attribution, browser tile caching and origin referrers for OSM; request only visible tiles and display base-map failure feedback.
+- Document provider free tiers, noncommercial limits, map behavior, and migration. Add no-account and provider-switching regressions.
+- Verify live Open-Meteo data for Denver and Lucena. Docker Hub publication and physical Pi deployment remain separate.
+
+
 ## 3.0.0 — 2026-10-27
 
 - Move Tomorrow.io and optional LocationIQ requests to validated, bounded server endpoints; mask private keys in settings responses.

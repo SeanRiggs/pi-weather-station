@@ -104,8 +104,9 @@ test('optional Basic authentication protects dashboard and API', async t => {
   assert.equal(r.status, 200);
   assert.equal((await request('/healthz')).status, 200);
 });
-test('weather requests need a key and valid coordinates before calling upstream', async t => {
-  const { request, calls } = await setup(t);
+test('explicit Tomorrow.io needs a key; invalid coordinates never call upstream', async t => {
+  const { request, calls, store } = await setup(t);
+  await store.update({ weatherProvider: 'tomorrow' });
   for (const route of ['/api/weather?lat=&lon=0&kind=current', '/api/weather?lat=91&lon=0&kind=current', '/api/weather?lat=0&lon=0&kind=bad']) assert.equal((await request(route)).status, 400);
   assert.equal((await request('/api/weather?lat=0&lon=0&kind=current')).status, 422);
   assert.equal(calls.length, 0);
@@ -216,4 +217,89 @@ test('radar paths are opaque IDs, not necessarily frame timestamps', () => {
   for (const path of ['/v2/radar/../private', '/v2/radar/id?url=evil', '//evil.test/frame']) {
     assert.throws(() => radarFrames({ ...base, radar: { past: [{ time: 1793067600, path }] } }));
   }
+});
+
+
+test('new settings choose no-account providers; existing keys retain their providers', async t => {
+  const { request, store } = await setup(t);
+  let s = await (await request('/settings')).json();
+  assert.equal(s.weatherProvider, 'open-meteo'); assert.equal(s.mapProvider, 'osm');
+  await store.update(privateValues);
+  s = await (await request('/settings')).json();
+  assert.equal(s.weatherProvider, 'tomorrow'); assert.equal(s.mapProvider, 'mapbox');
+  await request('/settings', 'PUT', { weatherProvider: 'open-meteo', mapProvider: 'osm' });
+  s = await (await request('/settings')).json();
+  assert.equal(s.weatherProvider, 'open-meteo'); assert.equal(s.mapProvider, 'osm');
+  assert.equal((await store.read()).weatherApiKey, privateValues.weatherApiKey);
+});
+test('no-account weather works for all panels with one shared upstream request', async t => {
+  const { request, calls } = await setup(t);
+  const data = await Promise.all(['current', 'hourly', 'daily'].map(async kind => {
+    const r = await request(`/api/weather?lat=0&lon=0&kind=${kind}`); assert.equal(r.status, 200); return r.json();
+  }));
+  assert.equal(calls.length, 1);
+  const url = new URL(calls[0].url);
+  assert.equal(url.hostname, 'api.open-meteo.com'); assert.equal(url.searchParams.has('apikey'), false);
+  assert.equal(url.searchParams.get('wind_speed_unit'), 'ms'); assert.equal(url.searchParams.get('timeformat'), 'unixtime');
+  assert.deepEqual(data.map(d => d.data.timelines[0].intervals.length), [1, 24, 5]);
+  assert.ok(data.every(d => d.provider === 'open-meteo'));
+});
+test('Open-Meteo uses current forecast hour, metric values, and daily totals', () => {
+  const { normalizeOpenMeteo } = require('../server/openMeteo');
+  const data = fixture.openMeteo(); data.hourly.precipitation_probability[12] = 73;
+  const n = normalizeOpenMeteo(data);
+  const current = n.current.data.timelines[0].intervals[0];
+  assert.equal(current.values.temperature, 20); assert.equal(current.values.windSpeed, 3);
+  assert.equal(current.values.precipitationProbability, 73); assert.equal(current.values.weatherCode, 1000);
+  const hourly = n.hourly.data.timelines[0].intervals;
+  assert.equal(Date.parse(hourly[0].startTime) / 1000, data.hourly.time[12]);
+  assert.equal(hourly[0].values.precipitationIntensity, 1.5);
+  const daily = n.daily.data.timelines[0].intervals[0].values;
+  assert.equal(daily.temperature, 18); assert.equal(daily.windSpeed, 5); assert.equal(daily.precipitationAmount, 12);
+  assert.equal(daily.precipitationIntensity, undefined);
+});
+test('WMO snow, freezing rain, thunderstorms and unknown conditions remain distinct', () => {
+  const { normalizeOpenMeteo } = require('../server/openMeteo');
+  for (const [wmo, expected, description] of [[75, 5101, 'Heavy snow'], [66, 6200, 'Light freezing rain'], [96, 8000, 'Thunderstorm with hail'], [999, -1, 'Conditions unavailable']]) {
+    const data = fixture.openMeteo(); data.current.weather_code = wmo; data.current.is_day = 0;
+    const v = normalizeOpenMeteo(data).current.data.timelines[0].intervals[0].values;
+    assert.equal(v.weatherCode, expected); assert.equal(v.conditionText, description); assert.equal(v.isDay, false);
+    if (wmo === 75) assert.equal(v.precipitationType, 2);
+  }
+});
+test('missing, null, misaligned or invalid Open-Meteo values are not rendered as zero', () => {
+  const { normalizeOpenMeteo } = require('../server/openMeteo');
+  for (const damage of [d => d.current.temperature_2m = null, d => d.current.relative_humidity_2m = 101,
+    d => d.hourly.precipitation = [], d => d.hourly.time[1] = d.hourly.time[0],
+    d => d.daily.precipitation_sum[0] = -1, d => d.current.time = 0,
+    d => d.hourly.time = d.hourly.time.slice(0, 15), d => d.daily.time = [],
+    d => d.current.is_day = null]) {
+    const data = fixture.openMeteo(); damage(data);
+    assert.throws(() => normalizeOpenMeteo(data), e => e.status === 502);
+  }
+});
+test('Open-Meteo cache expires and rate limits back off across all panel requests', async t => {
+  const { store } = await setup(t); let now = 0, calls = 0, limited = false;
+  const provider = new Providers(store, { now: () => now, fetchImpl: async () => {
+    calls++; return limited ? new Response('', { status: 429, headers: { 'Retry-After': '120' } }) : new Response(JSON.stringify(fixture.openMeteo()));
+  } });
+  await provider.weather({ lat: '0', lon: '0', kind: 'current' });
+  await provider.weather({ lat: '0', lon: '0', kind: 'daily' }); assert.equal(calls, 1);
+  now = 600001; await provider.weather({ lat: '0', lon: '0', kind: 'hourly' }); assert.equal(calls, 2);
+  now += 600001; limited = true;
+  for (const kind of ['current', 'hourly', 'daily']) await assert.rejects(provider.weather({ lat: '0', lon: '0', kind }), e => e.status === 429);
+  assert.equal(calls, 3);
+});
+test('provider selection validates enums and preserves secrets through switching', async t => {
+  const { request, store, calls } = await setup(t); await store.update(privateValues);
+  for (const input of [{ weatherProvider: 'other' }, { mapProvider: 'javascript:evil' }]) assert.equal((await request('/settings', 'PUT', input)).status, 400);
+  await request('/settings', 'PUT', { weatherProvider: 'open-meteo', weatherApiKey: MASK });
+  await request('/api/weather?lat=0&lon=0&kind=current'); assert.equal(new URL(calls[0].url).hostname, 'api.open-meteo.com');
+  await request('/settings', 'PUT', { weatherProvider: 'tomorrow', weatherApiKey: MASK });
+  await request('/api/weather?lat=0&lon=0&kind=current'); assert.equal(new URL(calls[1].url).hostname, 'api.tomorrow.io');
+  assert.equal((await store.read()).weatherApiKey, privateValues.weatherApiKey);
+});
+test('browser policy permits an origin referrer for public map tiles without exposing paths', async t => {
+  const { request } = await setup(t);
+  assert.equal((await request('/settings')).headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
 });
