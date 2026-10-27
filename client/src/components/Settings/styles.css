@@ -1,6 +1,8 @@
 .container {
-  height: calc(100vh - 20px); /* subtract padding */
-  width: calc(100vw - 320px); /* subtract info panel and padding */
+  box-sizing: border-box;
+  overflow-y: auto;
+  height: 100dvh; /* subtract padding */
+  width: min(640px, 100vw); /* subtract info panel and padding */
   background-color: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(3px);
   padding: 10px;
@@ -90,6 +92,8 @@
 
 .toggle-buttons {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   max-width: 900px;
 
   justify-content: space-between;

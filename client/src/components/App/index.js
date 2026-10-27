@@ -6,7 +6,7 @@ import WeatherMap from "~/components/WeatherMap";
 import InfoPanel from "~/components/InfoPanel";
 import Settings from "~/components/Settings";
 
-import "!style-loader!css-loader!./overrides.css";
+import "./overrides.css";
 
 /**
  * Main component
@@ -23,8 +23,7 @@ const App = () => {
   } = useContext(AppContext);
 
   useEffect(() => {
-    getCustomLatLon();
-    getBrowserGeo();
+    getBrowserGeo().catch(() => {});
     loadStoredData();
   }, []);
 

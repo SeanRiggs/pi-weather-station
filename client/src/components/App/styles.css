@@ -1,7 +1,8 @@
 .container {
   width: 100vw;
   height: 100vh;
-  min-width: 800px;
+  height: 100dvh;
+  min-width: 0;
   min-height: 480px;
   display: grid;
   grid-template-columns: auto 300px;
@@ -39,9 +40,15 @@
 
 .settings-container {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 5000;
 }
 
 .hide-mouse{
   cursor: none !important;
+}
+@media (max-width: 799px) {
+  .container { height: auto; min-height: 100dvh; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(280px, 45vh) minmax(600px, auto); grid-template-areas: "map" "info"; }
+  .info-container { min-width: 0; }
 }

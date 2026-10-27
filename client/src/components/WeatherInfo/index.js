@@ -9,37 +9,7 @@ import HourlyChart from "~/components/weatherCharts/HourlyChart";
 
 const CURRENT_WEATHER_DATA_UPDATE_INTERVAL = 10 * 60 * 1000; //every 10 minutes
 const HOURLY_WEATHER_DATA_UPDATE_INTERVAL = 60 * 60 * 1000; //every hour
-const DAILY_WEATHER_DATA_UPDATE_INTERVAL = 24 * 60 * 60 * 1000; //every day
-
-/**
- * Creates an interval to call a weather update callback
- *
- * @param {Object} params
- * @param {Object} params.stateInterval Interval in state
- * @param {Function} params.stateIntervalSetter state interval setter
- * @param {Function} params.cb callback to invoke on each interval
- * @param {Number} params.intervalTime interval frequency, ms
- * @param {String} params.weatherApiKey weather API key
- * @param {Object} params.mapGeo coordinates to get weather for
- */
-function createWeatherUpdateInterval({
-  stateInterval,
-  stateIntervalSetter,
-  cb,
-  intervalTime,
-  weatherApiKey,
-  mapGeo,
-}) {
-  if (stateInterval) {
-    clearInterval(stateInterval);
-    stateIntervalSetter(null);
-  }
-  if (weatherApiKey && mapGeo) {
-    const interval = setInterval(cb, intervalTime);
-    cb();
-    stateIntervalSetter(interval);
-  }
-}
+const DAILY_WEATHER_DATA_UPDATE_INTERVAL = 60 * 60 * 1000; //every day
 
 /**
  * Displays weather info
@@ -58,27 +28,18 @@ const WeatherInfo = () => {
     weatherApiKey,
     currentWeatherDataErr,
     currentWeatherDataErrMsg,
+    hourlyWeatherDataErr,
+    dailyWeatherDataErr,
     darkMode,
     setSettingsMenuOpen,
     currentWeatherData,
     updateSunriseSunset
   } = useContext(AppContext);
 
-  const [
-    currentWeatherUpdateInterval,
-    setCurrentWeatherUpdateInterval,
-  ] = useState(null);
-  const [
-    hourlyWeatherUpdateInterval,
-    setHourlyWeatherUpdateInterval,
-  ] = useState(null);
-  const [dailyWeatherUpdateInterval, setDailyWeatherUpdateInterval] = useState(
-    null
-  );
   const [err, setErr] = useState(null);
 
   const hourlyWeatherUpdateCb = useCallback(() => {
-    updateSunriseSunset(mapGeo);
+    updateSunriseSunset(mapGeo).catch(() => {});
     updateHourlyWeatherData(mapGeo).catch((err) => {
       console.log("err", err);
     });
@@ -113,40 +74,17 @@ const WeatherInfo = () => {
   }, [weatherApiKey, reverseGeoApiKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    createWeatherUpdateInterval({
-      stateInterval: currentWeatherUpdateInterval,
-      stateIntervalSetter: setCurrentWeatherUpdateInterval,
-      cb: currentWeatherUpdateCb,
-      intervalTime: CURRENT_WEATHER_DATA_UPDATE_INTERVAL,
-      weatherApiKey,
-      mapGeo,
-    });
-    createWeatherUpdateInterval({
-      stateInterval: hourlyWeatherUpdateInterval,
-      stateIntervalSetter: setHourlyWeatherUpdateInterval,
-      cb: hourlyWeatherUpdateCb,
-      intervalTime: HOURLY_WEATHER_DATA_UPDATE_INTERVAL,
-      weatherApiKey,
-      mapGeo,
-    });
-    createWeatherUpdateInterval({
-      stateInterval: dailyWeatherUpdateInterval,
-      stateIntervalSetter: setDailyWeatherUpdateInterval,
-      cb: dailyWeatherUpdateCb,
-      intervalTime: DAILY_WEATHER_DATA_UPDATE_INTERVAL,
-      weatherApiKey,
-      mapGeo,
-    });
-    return () => {
-      clearInterval(currentWeatherUpdateInterval);
-      clearInterval(hourlyWeatherUpdateInterval);
-      clearInterval(dailyWeatherUpdateInterval);
-    };
-  }, [weatherApiKey, mapGeo]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!weatherApiKey || !mapGeo) return;
+    const callbacks = [currentWeatherUpdateCb, hourlyWeatherUpdateCb, dailyWeatherUpdateCb];
+    const delays = [CURRENT_WEATHER_DATA_UPDATE_INTERVAL, HOURLY_WEATHER_DATA_UPDATE_INTERVAL, DAILY_WEATHER_DATA_UPDATE_INTERVAL];
+    const timers = callbacks.map((cb, index) => { cb(); return setInterval(cb, delays[index]); });
+    return () => timers.forEach(clearInterval);
+  }, [weatherApiKey, mapGeo]);
 
   if (currentWeatherData) {
     return (
       <div className={styles.container}>
+        {currentWeatherDataErr || hourlyWeatherDataErr || dailyWeatherDataErr ? <div role="status" style={{ fontSize: 11 }}>An update failed. Some displayed data is from the previous successful update.</div> : null}
         <div className={styles.location}>
           <LocationName />
         </div>
@@ -159,6 +97,7 @@ const WeatherInfo = () => {
         <div className={styles.weatherChart}>
           <DailyChart />
         </div>
+        <div style={{ fontSize: 9, marginTop: 4 }}><a href="https://www.tomorrow.io/" target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Weather: Tomorrow.io</a> · <a href="https://sunrise-sunset.org/" target="_blank" rel="noreferrer" style={{ color: "inherit" }}>Sunrise-Sunset</a>{reverseGeoApiKey ? <> · <a href="https://locationiq.com/" target="_blank" rel="noreferrer" style={{ color: "inherit" }}>LocationIQ</a></> : null}</div>
       </div>
     );
   } else if (currentWeatherData || currentWeatherDataErr || err) {

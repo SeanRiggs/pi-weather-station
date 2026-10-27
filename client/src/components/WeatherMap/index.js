@@ -9,8 +9,15 @@ import { Map, TileLayer, AttributionControl, Marker } from "react-leaflet";
 import PropTypes from "prop-types";
 import { AppContext } from "~/AppContext";
 import debounce from "debounce";
-import axios from "axios";
+import axios from "~/services/http";
 import styles from "./styles.css";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import iconUrl from "leaflet/dist/images/marker-icon.png";
+import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
+import shadowUrl from "leaflet/dist/images/marker-shadow.png";
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
 
 /**
  * Weather map
@@ -45,6 +52,7 @@ const WeatherMap = ({ zoom, dark }) => {
   );
 
   const [mapTimestamps, setMapTimestamps] = useState(null);
+  const [radarError, setRadarError] = useState(false);
   const [mapTimestamp, setMapTimestamp] = useState(null);
   const [currentMapTimestampIdx, setCurrentMapTimestampIdx] = useState(0);
 
@@ -64,9 +72,11 @@ const WeatherMap = ({ zoom, dark }) => {
       getMapTimestamps()
         .then((res) => {
           setMapTimestamps(res);
+          setCurrentMapTimestampIdx(res.length - 1);
+          setRadarError(false);
         })
         .catch((err) => {
-          console.log("err", err);
+          setRadarError(true);
         });
     };
 
@@ -145,21 +155,26 @@ const WeatherMap = ({ zoom, dark }) => {
       <TileLayer
         attribution='© <a href="https://www.mapbox.com/feedback/">Mapbox</a>'
         url={`https://api.mapbox.com/styles/v1/mapbox/${
-          dark ? "dark-v10" : "light-v10"
+          dark ? "dark-v11" : "light-v11"
         }/tiles/{z}/{x}/{y}?access_token={apiKey}`}
         apiKey={mapApiKey}
+        tileSize={512}
+        zoomOffset={-1}
       />
       {mapTimestamp ? (
         <TileLayer
           attribution='<a href="https://www.rainviewer.com/">RainViewer</a>'
-          url={`https://tilecache.rainviewer.com/v2/radar/${mapTimestamp}/{size}/{z}/{x}/{y}/{color}/{smooth}_{snow}.png`}
+          url={`${mapTimestamp.url}/{size}/{z}/{x}/{y}/{color}/{smooth}_{snow}.png`}
+          maxNativeZoom={7}
+          maxZoom={18}
           opacity={0.3}
-          size={512}
-          color={6} // https://www.rainviewer.com/api.html#colorSchemes
+          size={256}
+          color={2} // https://www.rainviewer.com/api.html#colorSchemes
           smooth={1}
           snow={1}
         />
       ) : null}
+      {radarError ? <div role="status" style={{ position: "absolute", bottom: 30, left: 10, zIndex: 1000, background: "#222", color: "white", padding: 6 }}>Radar unavailable; retrying on the next update.</div> : null}
       {markerIsVisible && markerPosition ? (
         <Marker position={markerPosition} opacity={0.65}></Marker>
       ) : null}
@@ -211,16 +226,7 @@ function hasVal(i) {
  * @returns {Promise} Promise of timestamps
  */
 function getMapTimestamps() {
-  return new Promise((resolve, reject) => {
-    axios
-      .get("https://api.rainviewer.com/public/maps.json")
-      .then((res) => {
-        resolve(res.data);
-      })
-      .catch((err) => {
-        reject(err);
-      });
-  });
+  return axios.get("/api/radar").then(({ data }) => data);
 }
 
 export default WeatherMap;

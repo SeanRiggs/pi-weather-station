@@ -1,209 +1,61 @@
-const fs = require("fs");
-const path = require("path");
-
-const SETTINGS_FILE = "../settings.json";
-const FILE_PATH = path.join(`${__dirname}/${SETTINGS_FILE}`);
-const ENCODING = "utf8";
-
-/**
- * Read the settings.json file
- *
- * @param {Object} callbacks
- * @param {Function} callbacks.successCb
- * @param {Function} callbacks.errorCb
- */
-function readSettingsFile({ successCb, errorCb }) {
-  fs.readFile(FILE_PATH, (err, data) => {
-    if (err) {
-      errorCb(err);
-    } else {
-      successCb(JSON.parse(data));
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { randomUUID } = require('node:crypto');
+const MASK = '[configured]';
+const KEYS = ['weatherApiKey', 'mapApiKey', 'reverseGeoApiKey', 'startingLat', 'startingLon'];
+class AppError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+function validate(input) {
+  if (!input || Array.isArray(input) || typeof input !== 'object' || Object.keys(input).some(k => !KEYS.includes(k))) throw new AppError(400, 'Unknown settings fields or invalid settings object.');
+  const result = {};
+  for (const [key, raw] of Object.entries(input)) {
+    if (typeof raw !== 'string' && typeof raw !== 'number' && raw !== null) throw new AppError(400, 'Invalid setting value.');
+    const value = raw == null ? '' : String(raw).trim();
+    if (value.length > 512 || /[\x00-\x1f\x7f]/.test(value)) throw new AppError(400, 'Invalid setting value.');
+    if (key === 'mapApiKey' && value && !value.startsWith('pk.')) throw new AppError(400, 'Mapbox needs a public pk. token, not a secret token.');
+    if (key.startsWith('starting') && value !== '' && (!Number.isFinite(Number(value)) || Math.abs(Number(value)) > (key === 'startingLat' ? 90 : 180))) throw new AppError(400, 'Coordinates are outside the allowed range.');
+    result[key] = value;
+  }
+  return result;
+}
+function publicSettings(settings) {
+  const safe = Object.fromEntries(KEYS.map(k => [k, settings[k] || '']));
+  for (const key of ['weatherApiKey', 'reverseGeoApiKey']) safe[key] = settings[key] ? MASK : '';
+  return safe;
+}
+class SettingsStore {
+  constructor(filename) { this.filename = filename; this.pending = Promise.resolve(); }
+  async read() {
+    try { return validate(JSON.parse(await fs.readFile(this.filename, 'utf8'))); }
+    catch (error) {
+      if (error.code === 'ENOENT') return {};
+      throw new AppError(500, 'Settings cannot be read. Restore a valid settings file before saving.');
     }
-  });
-}
-
-/**
- * Creates a `settings.json` file
- *
- * @param {Object} req
- * @param {Object} [req.body]
- * @param {Object} res
- */
-function createSettingsFile(req, res) {
-  const contents = req.body || {};
-
-  if (fs.existsSync(FILE_PATH)) {
-    return res.status(409).json("settings file already exists").end();
-  } else {
-    fs.writeFile(FILE_PATH, JSON.stringify(contents), ENCODING, (err) => {
-      if (err) {
-        return res.status(500).json(err).end();
-      } else {
-        return res.status(201).json(contents).end();
-      }
-    });
   }
-}
-
-/**
- * Return the settings.json file
- */
-function getSettings(req, res) {
-  if (!fs.existsSync(FILE_PATH)) {
-    return res.status(404).json("settings.json not found!").end();
-  }
-
-  readSettingsFile({
-    successCb: (data) => {
-      return res.status(200).json(data).end();
-    },
-    errorCb: (err) => {
-      return res.status(500).end();
-    },
-  });
-}
-
-/**
- * Sets a single setting. Creates a new `settings.json` file if none exists.
- *
- * @param {Object} req
- * @param {Object} res
- */
-function setSetting(req, res) {
-  const { key, val } = req.body;
-  if (!key || !val) {
-    return res.status(400).json("You must supply a key and val").end();
-  }
-
-  /**
-   * Writes file contents
-   *
-   * @param {Object} newSettings
-   * @param {Boolean} [newFile] If file is new
-   */
-  const writeContents = (newSettings, newFile) => {
-    fs.writeFile(FILE_PATH, JSON.stringify(newSettings), ENCODING, (err) => {
-      if (err) {
-        return res.status(500).json(err).end();
-      } else {
-        return res
-          .status(newFile ? 201 : 200)
-          .json(newSettings)
-          .end();
-      }
-    });
-  };
-
-  /**
-   * Read success callback
-   *
-   * @param {Object} currentSettings
-   */
-  const readSuccess = (currentSettings) => {
-    const newSettings = {
-      ...currentSettings,
-      [key]: val,
-    };
-    writeContents(newSettings);
-  };
-
-  /**
-   * Read error callback
-   *
-   * @param {Object} [err]
-   */
-  const readError = (err) => {
-    return res.status(500).json(err).end();
-  };
-
-  if (!fs.existsSync(FILE_PATH)) {
-    writeContents({ [key]: val }, true);
-  } else {
-    readSettingsFile({
-      successCb: readSuccess,
-      errorCb: readError,
-    });
-  }
-}
-
-function replaceSettings(req, res) {
-  const { body } = req;
-  if (!body) {
-    return res.status(400).json("You must provide settings contents").end();
-  }
-  const fileExists = fs.existsSync(FILE_PATH);
-
-  fs.writeFile(FILE_PATH, JSON.stringify(body), ENCODING, (err) => {
-    if (err) {
-      return res.status(500).json(err).end();
-    } else {
-      return res
-        .status(fileExists ? 200 : 201)
-        .json(body)
-        .end();
-    }
-  });
-}
-
-/**
- * Deletes a specific setting
- *
- * @param {Object} req
- * @param {Object} req.query
- * @param {Object} req.query.key The key to be deleted
- * @param {Object} res
- */
-function deleteSetting(req, res) {
-  const { key } = req.query;
-  if (!key) {
-    return res.status(400).json("You must supply a key to delete").end();
-  }
-
-  /**
-   * Read success callback
-   *
-   * @param {Object} currentSettings
-   */
-  const readSuccess = (currentSettings) => {
-    if (!Object.prototype.hasOwnProperty.call(currentSettings, key)) {
-      return res.status(404).end();
-    }
-
-    delete currentSettings[key];
-
-    fs.writeFile(
-      FILE_PATH,
-      JSON.stringify(currentSettings),
-      ENCODING,
-      (err) => {
-        if (err) {
-          return res.status(500).json(err).end();
-        } else {
-          return res.status(200).json(currentSettings).end();
+  update(input, operation = 'merge') {
+    const task = this.pending.then(async () => {
+      const values = validate(input);
+      const old = await this.read(); // Corrupt files are never silently replaced.
+      if (operation === 'create' && await fs.stat(this.filename).catch(() => null)) throw new AppError(409, 'Settings already exist.');
+      const next = { ...old, ...values };
+      for (const key of ['weatherApiKey', 'reverseGeoApiKey']) {
+        if (values[key] === MASK) {
+          if (!old[key]) throw new AppError(400, 'No saved key exists for that placeholder.');
+          next[key] = old[key];
         }
       }
-    );
-  };
-
-  /**
-   * Error callback
-   *
-   * @param {Object} err
-   */
-  const readError = (err) => {
-    return res.status(500).json(err).end();
-  };
-
-  readSettingsFile({
-    successCb: readSuccess,
-    errorCb: readError,
-  });
+      await fs.mkdir(path.dirname(this.filename), { recursive: true, mode: 0o700 });
+      const temp = this.filename + '.' + randomUUID() + '.tmp';
+      try {
+        const file = await fs.open(temp, 'wx', 0o600);
+        try { await file.writeFile(JSON.stringify(next, null, 2) + '\n'); await file.sync(); } finally { await file.close(); }
+        await fs.rename(temp, this.filename);
+      } finally { await fs.rm(temp, { force: true }); }
+      return publicSettings(next);
+    });
+    this.pending = task.catch(() => {});
+    return task;
+  }
 }
-
-module.exports = {
-  getSettings,
-  setSetting,
-  deleteSetting,
-  createSettingsFile,
-  replaceSettings,
-};
+module.exports = { SettingsStore, publicSettings, validate, AppError, MASK };

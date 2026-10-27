@@ -1,12 +1,15 @@
-version: '3'
 services:
   weather-station:
-    image: seanriggs/pi-weather-station:latest
+    build:
+      context: ../..
+      args:
+        NODE_VERSION: "24"
+    image: pi-weather-station:local
     container_name: weather-station
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
-      - appdata:/app
+      - weather-data:/data
     restart: unless-stopped
 volumes:
-  appdata:
+  weather-data:

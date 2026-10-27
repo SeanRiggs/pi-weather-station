@@ -1,72 +1,109 @@
-
 # Pi Weather Station
 
-This is a weather station designed to be used with a Raspberry Pi on the official 7" 800x480 touchscreen.
+A weather dashboard for a Raspberry Pi touchscreen, a desktop browser, or a small home display. Keep a map and past radar frames beside current conditions, hourly and daily charts, a clock, and sunrise/sunset times.
 
-![pws-screenshot3](https://user-images.githubusercontent.com/15202038/91359998-4625bb80-e7bb-11ea-937e-c87eede41f35.JPG)
+This fork builds on [Eric Lewin's Pi Weather Station](https://github.com/elewin/pi-weather-station). The original layout and MIT attribution are retained.
 
-The weather station will require you to have API keys from [Mapbox](https://www.mapbox.com/) and [ClimaCell (v4)](https://www.climacell.co/). Optionally, you can use an API key from [LocationIQ](https://locationiq.com/) to preform reverse geocoding.
+[![Tests](https://github.com/SeanRiggs/pi-weather-station/actions/workflows/test.yml/badge.svg)](https://github.com/SeanRiggs/pi-weather-station/actions/workflows/test.yml)
 
-Weather maps are provided by the [RainViewer](https://www.rainviewer.com/) API, which generously does not require an [API key](https://www.rainviewer.com/api.html).
+## Version 3 refresh
 
-Sunrise and Sunset times are provided by [Sunrise-Sunset](https://sunrise-sunset.org/), which generously does not require an [API key](https://sunrise-sunset.org/api).
+- Weather requests now go through the server to Tomorrow.io's current v4 Timelines endpoint; the old ClimaCell hostname is no longer used by the dashboard.
+- Weather and optional LocationIQ keys are stored on the server and returned as `[configured]`, rather than exposed through settings reads or browser provider URLs. The Mapbox **public** token still goes to the browser, as required for map tiles.
+- RainViewer uses the current weather-maps response, past frames, Universal Blue, and native radar zoom 7 with overzoom at closer map views.
+- Downloads have timeouts and response-size limits. Server caches share repeat requests; concurrent weather requests are deduplicated, and provider 429 responses trigger backoff.
+- Settings writes are validated, serialized, and replaced atomically; malformed existing settings are preserved for recovery.
+- The server defaults to localhost, rejects unexpected Host/cross-origin requests, and supports an optional dashboard password. Additional allowed hostnames require a password.
+- Docker builds from this repository, runs as a nonroot user, and persists only `/data`, keeping application upgrades separate from your settings.
+- The original 800×480 layout remains available, with a stacked layout on smaller screens and scrollable settings.
 
-See it in action [here](https://www.youtube.com/watch?v=dvM6cyqYSw8).
+## Providers and setup requirements
 
-> Be mindful of the plan limits for your API keys and understand the terms of each provider, as scrolling around the map and selecting different locations will incur API calls for every location. Additionally, the weather station will periodically make additional api calls to get weather updates throughout the day.
+| Feature | Provider | Configuration |
+| --- | --- | --- |
+| Current conditions and charts | [Tomorrow.io Timelines](https://docs.tomorrow.io/reference/timeline-overview) | A key with access to the requested fields and current/hourly/daily timelines. |
+| Base map | [Mapbox](https://docs.mapbox.com/help/dive-deeper/access-tokens/) | A public `pk.` token authorized for the map styles/tiles. Never enter a secret `sk.` token. |
+| Past radar overlay | [RainViewer](https://www.rainviewer.com/api/weather-maps-api.html) | No key; personal/educational use, subject to provider terms and coverage. |
+| Location names | [LocationIQ](https://docs.locationiq.com/docs/reverse-geocoding) | Optional key. Coordinates are shown when omitted or unavailable. |
+| Sunrise/sunset | [Sunrise-Sunset](https://sunrise-sunset.org/api) | No key. Browser needs access to this public API. |
 
-# v2.0.0
+Check your account's current plan, permissions, and quotas. An old ClimaCell key is not assumed to work with a Tomorrow.io account. Forecast field availability depends on the plan. The app requests metric values internally and converts them for display.
 
-1-22-2021: Now uses [ClimaCell](https://www.climacell.co/) API v4. For ClimaCell API v3 keys, use [Pi Weather Station v1](https://github.com/elewin/pi-weather-station/releases/tag/v1.0).
+RainViewer's [2026 transition](https://www.rainviewer.com/api/transition-faq.html) removed future radar frames and other color schemes and limits native zoom to 7. Animation here is **past radar**, not a prediction. Provider outages or missing coverage do not mean there is no precipitation.
 
-# Setup
+## Run from source
 
-> You will need to have [Node.js](https://nodejs.org/) installed.
+Use a maintained **Node.js 24** release; Node 22 is also covered by server tests. Use a current Chromium-based browser on the display.
 
-To install, clone the repo and run
-
-    $ npm install
-
-Start the server with
-
-    $ npm start
-
-Now set point your browser to `http://localhost:8080` and put it in full screen mode (`F11` in Chromium).
-
-## Access from another machine
-
-It's possible to access the app from another machine, but beware that by doing so you'll be exposing the app to your entire network, and someone else could potentially access the app and retreive your API keys from the settings page. By default the app is only accessible to `localhost`, but if you would like to open it up to your network (at your own risk!), open `/server/index.js` and remove `"localhost"` from the line that contains:
-
-```js
-app.listen(PORT, "localhost", async () => {
+```sh
+git clone https://github.com/SeanRiggs/pi-weather-station.git
+cd pi-weather-station
+npm ci
+npm --prefix client ci
+npm run build
+npm start
 ```
 
-so that it becomes:
+Open **http://127.0.0.1:8080**. Use browser full-screen/kiosk mode if desired. The server does not try to launch a desktop browser, which also makes it suitable for headless hosts.
 
-```js
-app.listen(PORT, async () => {
+On first run, open Settings and enter a Tomorrow.io key, a Mapbox public token, and your starting latitude/longitude. You can grant browser location permission instead; manual coordinates are more reliable for a fixed display. Zero coordinates are supported. The old third-party IP-geolocation lookup is no longer used.
+
+Settings are saved to `settings.json` at the repository root by default. You may copy `settings.example.json` there and edit it before starting. Keep it private; it is ignored by Git. The server creates new settings files with mode `0600`.
+
+After saving, private key inputs show `[configured]`. Leave that placeholder unchanged to keep a key, enter a new key to change it, or clear the field to remove it. Save errors appear in Settings instead of silently closing the panel.
+
+### Docker
+
+For a fresh installation with Docker Compose v2:
+
+```sh
+docker compose up -d --build
 ```
 
-The server will now serve the app across your network.
+Open **http://127.0.0.1:8080** on the Docker host. The root Compose file builds `pi-weather-station:local`, publishes only on loopback, and stores settings in the named `weather-data` volume at `/data/settings.json`.
 
-# Settings
+**This source-build workflow does not update Docker Hub.** Existing `seanriggs/pi-weather-station:latest`, `:arm64`, or `:armv7-armhf` tags must not be assumed to contain version 3. A registry release is a separate publishing step. See the [Docker guide](Docker%20Image/Docker-ReadMe.md) for architectures and legacy Compose paths.
 
-- Your API keys are saved locally (in plain text) to `settings.json`.
-- The server will attempt to get your default location, but if it cannot or you wish to choose a different default location, enter the latitude and longitude under `Custom Latitude` and `Custom Longitude` in settings, which can be accessed by tapping the gear button in the lower right hand corner.
-- To hide the mouse cursor when using a touch screen, set `Hide Mouse` to `On`.
+**Existing Docker users:** read [UPGRADING.md](UPGRADING.md) before changing containers. The old `appdata:/app` mount contains application files as well as settings; reusing it can retain obsolete code. Export your settings and keep the old volume until migration is verified. Do not use `docker compose down -v` during an upgrade.
 
-# Do you want to Host this Application in Docker?
+## Configuration
 
-Pi Weather Station is available as a Docker Image for AMD64 and ARM infrastructures. see the *ReadME* here for more: https://github.com/SeanRiggs/pi-weather-station/blob/master/Docker%20Image/Docker-ReadMe.md
+| Environment variable | Default | Meaning |
+| --- | --- | --- |
+| `HOST` | `127.0.0.1` from source; `0.0.0.0` in Docker | Server bind address. Docker's host publishing rule still controls access. |
+| `PORT` | `8080` | Listening port. |
+| `SETTINGS_FILE` | Repository `settings.json`; `/data/settings.json` in Docker | Private settings file. Its directory must be writable by the server account. |
+| `DASHBOARD_PASSWORD` | Empty | When set, protect the app and settings with HTTP Basic authentication, username `weather`. |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1,[::1]` | Accepted request hostnames/IPs, without schemes or ports. Adding LAN addresses/names requires `DASHBOARD_PASSWORD`. |
+| `NODE_VERSION` | `24` | Compose build argument; use `22` for an ARMv7 source build. |
 
-# License
+For access from another machine, configure the bind address, the exact allowed hostname/IP, and a strong dashboard password. In Docker, also explicitly change the loopback-only port binding. Basic authentication needs HTTPS through a properly configured reverse proxy or a trusted private tunnel to protect the password in transit. Keep this a private dashboard; the project is not an Internet-facing multiuser service. Proxy Host handling must match `ALLOWED_HOSTS`.
 
-The MIT License (MIT)
+Private settings remain plaintext on the server's disk, readable by its account and administrators. Anyone authorized to the dashboard can change its provider settings. The password protects settings as well as the dashboard; `/healthz` exposes only readiness/version. A public Mapbox token is intentionally visible to viewers—restrict its scopes and allowed URLs appropriately in Mapbox.
 
-Copyright (c) 2020 Eric Lewin
+## Refreshes and failure behavior
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+The browser updates current weather every 10 minutes and hourly/daily charts every hour. Server caches use the same intervals per location; radar metadata is cached for 10 minutes. Panning to a new location may create new provider calls. Caches and provider backoff are in memory and reset when the server restarts, so they are not a quota guarantee.
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+The server bounds provider JSON to 2 MiB and requests to 10 seconds; browser requests time out after 15 seconds. It does not expose raw provider errors, key-bearing URLs, or stack traces through the API. Missing keys, denied plans, or incomplete provider responses show an error rather than fabricated weather values. After a failed refresh, retained values are marked as previous data. Location-name failures fall back to coordinates; radar failures keep the base map with an unavailable notice.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+Displayed clock/forecast labels use the browser's timezone; set the display device's timezone to match the location for a fixed kiosk. The dashboard does not provide severe-weather alerts or safety-critical forecasts.
+
+## Development and verification
+
+```sh
+npm test
+npm run build
+npx playwright install chromium
+npm run test:browser
+npm audit --omit=dev
+npm --prefix client audit --omit=dev
+```
+
+The server tests use disposable settings files and simulated provider responses, plus a local HTTP timeout test. Browser tests run the built UI with fake provider data and tiles; they cover first-run setup, zero coordinates, current weather/charts, radar URLs, key masking, save/reload, invalid settings, and a narrow viewport. They never use real account keys. Docker CI builds and checks startup, nonroot execution, and settings retention across container recreation on AMD64/ARM64, plus ARMv7 emulation with Node 22.
+
+The UI keeps compatible React/Leaflet/chart component versions while updating the build tooling and locked dependencies. A broader framework redesign is separate from this refresh. Provider accounts, real map imagery, forecast accuracy, and physical Raspberry Pi touchscreen interaction still require checks on your installation.
+
+Contributions are welcome: include reproducible steps and a test for changed behavior, use synthetic fixtures, and remove API keys/settings before sharing logs. See [CHANGELOG.md](CHANGELOG.md) and [UPGRADING.md](UPGRADING.md).
+
+MIT licensed. Original copyright © 2020 Eric Lewin; see [LICENSE](LICENSE).

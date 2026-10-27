@@ -1,0 +1,18 @@
+services:
+  weather-station:
+    build:
+      context: .
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+    image: pi-weather-station:local
+    container_name: weather-station
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
+    volumes:
+      - weather-data:/data
+    restart: unless-stopped
+volumes:
+  weather-data:

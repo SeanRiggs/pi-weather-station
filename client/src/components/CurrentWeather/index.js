@@ -27,7 +27,7 @@ import daySunnyOvercast from "@iconify/icons-wi/day-sunny-overcast";
 
 /**
  * Current weather conditions
- * https://developer.climacell.co/v3/reference#data-layers-weather
+ * https://docs.tomorrow.io/reference/weather-data-layers
  *
  * @returns {JSX.Element} Current weather conditions component
  */
@@ -108,7 +108,7 @@ const CurrentWeather = () => {
 /**
  * Parse weather code
  *
- * https://docs.climacell.co/reference/data-layers-overview
+ * https://docs.tomorrow.io/reference/weather-data-layers
  *
  * @param {String} code
  * @param {Boolean} [isDay] if it is currently day
@@ -133,7 +133,7 @@ const parseWeatherCode = (code, isDay) => {
     case 5101:
       return { desc: "Heavy snow", icon: snowIcon };
     case 5000:
-      return { desc: "Show", icon: snowIcon };
+      return { desc: "Snow", icon: snowIcon };
     case 5100:
       return { desc: "Light snow", icon: snowIcon };
     case 5001:

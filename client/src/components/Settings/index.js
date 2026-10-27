@@ -8,7 +8,7 @@ import roundSaveAlt from "@iconify/icons-ic/round-save-alt";
 import undoIcon from "@iconify/icons-dashicons/undo";
 import closeSharp from "@iconify/icons-ion/close-sharp";
 import PropTypes from "prop-types";
-import "!style-loader!css-loader!./animations.css";
+import "./animations.css";
 
 /**
  * Settings page
@@ -58,22 +58,12 @@ const Settings = () => {
   ]);
 
   useEffect(() => {
-    if (mapApiKey) {
-      setMapsKey(mapApiKey);
-    }
-    if (weatherApiKey) {
-      setWeatherKey(weatherApiKey);
-    }
-    if (reverseGeoApiKey) {
-      setGeoKey(reverseGeoApiKey);
-    }
-    if (customLat) {
-      setLat(customLat);
-    }
-    if (customLon) {
-      setLon(customLon);
-    }
-  }, [mapApiKey, weatherApiKey, reverseGeoApiKey, customLon, customLat]);
+    setMapsKey(mapApiKey || "");
+    setWeatherKey(weatherApiKey || "");
+    setGeoKey(reverseGeoApiKey || "");
+    setLat(customLat == null ? "" : customLat);
+    setLon(customLon == null ? "" : customLon);
+  }, [mapApiKey, weatherApiKey, reverseGeoApiKey, customLon, customLat, settingsMenuOpen]);
 
   return (
     <CSSTransition
@@ -84,6 +74,7 @@ const Settings = () => {
     >
       <div className={styles.container}>
         <div className={styles.header}>SETTINGS</div>
+        <div style={{ padding: "0 20px", fontSize: "12px" }}>Saved private keys appear as [configured]. Leave that text to keep a key, replace it to change the key, or clear it to remove the key.</div>
         <div
           className={styles.closeButton}
           onClick={() => {
@@ -95,21 +86,21 @@ const Settings = () => {
         <div className={styles.settingsContainer}>
           <ToggleButtons />
           <Input
-            label={"MAPS API KEY"}
+            label={"MAPBOX PUBLIC TOKEN (pk.)"}
             val={mapsKey}
             current={currentMapsKey}
             cb={setMapsKey}
             required={true}
           />
           <Input
-            label={"WEATHER API KEY"}
+            label={"TOMORROW.IO API KEY"}
             val={weatherKey}
             current={currentWeatherKey}
             cb={setWeatherKey}
             required={true}
           />
           <Input
-            label={"GEOLOCATION API KEY"}
+            label={"LOCATIONIQ API KEY (OPTIONAL)"}
             val={geoKey}
             current={currentGeoKey}
             cb={setGeoKey}
@@ -171,18 +162,23 @@ const SaveButton = ({ mapsKey, weatherKey, geoKey, lat, lon }) => {
   const { saveSettingsToJson, setSettingsMenuOpen, mouseHide } = useContext(
     AppContext
   );
+  const [saveError, setSaveError] = useState("");
   return (
+    <div>
     <div
+      role="button"
+      aria-label="Save settings"
       className={`${styles.button} ${styles.saveButton} ${
         !mouseHide ? styles.showMouse : ""
       }`}
       onClick={() => {
+        setSaveError("");
         saveSettingsToJson({ mapsKey, weatherKey, geoKey, lat, lon })
           .then(() => {
             setSettingsMenuOpen(false);
           })
           .catch((err) => {
-            console.log("err!", err);
+            setSaveError(err.message);
           });
       }}
     >
@@ -190,6 +186,8 @@ const SaveButton = ({ mapsKey, weatherKey, geoKey, lat, lon }) => {
       <div>
         <InlineIcon icon={roundSaveAlt} />
       </div>
+    </div>
+    {saveError ? <div role="alert" style={{ maxWidth: 200, fontSize: 12, marginTop: 8, overflowWrap: "anywhere" }}>{saveError}</div> : null}
     </div>
   );
 };
@@ -387,7 +385,9 @@ const Input = ({ label, val, cb, required, current }) => {
         }`}
       >
         <input
-          type="text"
+          type={label.includes("KEY") || label.includes("TOKEN") ? "password" : "text"}
+          aria-label={label}
+          autoComplete="off"
           placeholder={"None"}
           value={inputValue || ""}
           onChange={(e) => {

@@ -35,24 +35,26 @@ const ControlButtons = () => {
         darkMode ? styles.dark : styles.light
       } ${!mouseHide ? styles.showMouse : ""}`}
     >
-      <div onClick={resetMapPosition}>
+      <div role="button" aria-label="Reset location" onClick={resetMapPosition}>
         <InlineIcon icon={locationArrow} />
       </div>
-      <div onClick={toggleMarker}>
+      <div role="button" aria-label="Toggle marker" onClick={toggleMarker}>
         <InlineIcon
           icon={markerIsVisible ? roundLocationOff : roundLocationOn}
         />
       </div>
       <div
+        role="button" aria-label="Animate past radar"
         onClick={toggleAnimateWeatherMap}
         className={`${animateWeatherMap ? styles.buttonDown : ""}`}
       >
         <InlineIcon icon={animateWeatherMap ? stopFilledAlt : playFilledAlt} />
       </div>
-      <div onClick={() => setDarkMode(!darkMode)}>
+      <div role="button" aria-label="Toggle theme" onClick={() => setDarkMode(!darkMode)}>
         <InlineIcon icon={contrastIcon} />
       </div>
       <div
+        role="button" aria-label="Open settings"
         onClick={toggleSettingsMenuOpen}
         className={`${settingsMenuOpen ? styles.buttonDown : ""}`}
       >

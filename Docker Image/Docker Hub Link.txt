@@ -1,1 +1,2 @@
-https://hub.docker.com/repository/docker/seanriggs/pi-weather-station
+https://hub.docker.com/r/seanriggs/pi-weather-station
+Legacy published images. Version 3 source builds and CI do not update these tags. See Docker-ReadMe.md.
