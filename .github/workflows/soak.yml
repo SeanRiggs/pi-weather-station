@@ -1,0 +1,63 @@
+name: Unattended weather station soak
+on:
+  push:
+    branches: [test/unattended-soak-2026-10-28]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: weather-station-soak
+  cancel-in-progress: false
+jobs:
+  preflight:
+    name: Accelerated outage and recovery checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm --prefix client ci --ignore-scripts
+      - run: npm run build
+      - name: Check outages, offline recovery, restart, and clock rollover
+        run: |
+          export BROWSER_PATH="$(command -v google-chrome)"
+          test -x "$BROWSER_PATH"
+          node tests/soak-browser.cjs preflight
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: accelerated-recovery-report
+          path: test-results/soak-preflight/
+          retention-days: 7
+          if-no-files-found: ignore
+  soak:
+    name: Five-hour browser soak
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: npm --prefix client ci --ignore-scripts
+      - run: npm run build
+      - name: Run five-hour real-time refresh and recovery test
+        env:
+          SOAK_MINUTES: '300'
+        run: |
+          export BROWSER_PATH="$(command -v google-chrome)"
+          test -x "$BROWSER_PATH"
+          node tests/soak-browser.cjs soak
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: five-hour-soak-report
+          path: test-results/soak-soak/
+          retention-days: 7
+          if-no-files-found: ignore
