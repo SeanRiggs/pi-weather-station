@@ -32,6 +32,7 @@ const os = require('node:os');
   await page.screenshot({path:path.join(output,'pi-weather-station-live-phone.png'),fullPage:true});
   await page.getByRole('button',{name:'Open settings',exact:true}).click();
   await page.getByLabel('Weather provider',{exact:true}).waitFor();
+  await page.locator('.animate-enter-done').waitFor();
   await page.screenshot({path:path.join(output,'pi-weather-station-no-account-settings.png')});
   const summary={capturedAt:new Date().toISOString(),location:'Lucena, Philippines (example coordinates 13.94, 121.62)',simulated:false,viewport:[800,480],phoneViewport:[390,844],errors,services:responses.reduce((a,r)=>{const k=r.host+(r.host==='127.0.0.1'?r.path:'');if(!a[k])a[k]={statuses:[],requests:0};if(!a[k].statuses.includes(r.status))a[k].statuses.push(r.status);a[k].requests++;return a;},{})};
   await fs.writeFile(path.join(output,'capture-check.json'),JSON.stringify(summary,null,2));
