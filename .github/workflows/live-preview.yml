@@ -1,0 +1,29 @@
+name: Capture live dashboard previews
+on:
+  push:
+    branches: [preview/live-dashboard]
+permissions:
+  contents: read
+jobs:
+  screenshots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: npm --prefix client ci --ignore-scripts
+      - run: npm run build
+      - name: Capture live no-account dashboard
+        run: |
+          export BROWSER_PATH="$(command -v google-chrome)"
+          node scripts/capture-live-preview.cjs
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: live-dashboard-previews
+          path: test-results/live/
+          retention-days: 7
+          if-no-files-found: warn
