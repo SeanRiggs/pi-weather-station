@@ -6,6 +6,26 @@ This fork builds on [Eric Lewin's Pi Weather Station](https://github.com/elewin/
 
 [![Tests](https://github.com/SeanRiggs/pi-weather-station/actions/workflows/test.yml/badge.svg)](https://github.com/SeanRiggs/pi-weather-station/actions/workflows/test.yml)
 
+## See it in action
+
+Two views of version 3.1 running with live provider data and no provider accounts or API keys. These are captured examples, not a live weather feed.
+
+### Lucena City, Philippines
+
+Current conditions and forecast charts beside a local map and past-radar overlay.
+
+![Pi Weather Station showing Lucena City, Philippines, with current conditions, hourly and five-day forecast charts, and a regional map](docs/images/lucena-city-weather.png)
+
+### Seattle, Washington
+
+A wider regional view makes the radar precipitation east of Seattle visible while keeping the selected location's conditions and forecasts alongside it.
+
+![Pi Weather Station showing Seattle, Washington, with regional precipitation radar, current conditions, and forecast charts](docs/images/seattle-weather-radar.png)
+
+Captured October 28, 2026 (UTC), at 800 × 480. Each dashboard clock uses the location's timezone, so the Seattle view shows the previous evening. Click either image to view it at full size.
+
+Maps © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright); weather by [Open-Meteo](https://open-meteo.com/), radar by [RainViewer](https://www.rainviewer.com/), and sunrise/sunset by [Sunrise-Sunset](https://sunrise-sunset.org/).
+
 ## Start without provider accounts
 
 Version 3.1 uses **Open-Meteo weather and OpenStreetMap** for a new installation. Choose your latitude/longitude in Settings or allow browser location access: no weather key, map token, or credit card is required. RainViewer past radar and Sunrise-Sunset also need no accounts. Location names are optional; without LocationIQ, the dashboard shows coordinates.
