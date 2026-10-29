@@ -1,0 +1,131 @@
+name: Build and publish Portainer image
+on:
+  push:
+    branches: [feature/portainer-stack]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: weather-container-publication
+  cancel-in-progress: false
+env:
+  IMAGE: ghcr.io/seanriggs/pi-weather-station
+jobs:
+  build:
+    if: github.repository == 'SeanRiggs/pi-weather-station'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            arch: amd64
+            node: '24'
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+            node: '24'
+          - runner: ubuntu-24.04
+            platform: linux/arm/v7
+            arch: armv7
+            node: '22'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - uses: docker/setup-qemu-action@v4.4.0
+        if: matrix.arch == 'armv7'
+        with:
+          platforms: arm
+      - name: Build versioned platform image
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          NODE_VERSION: ${{ matrix.node }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          docker build --platform "$PLATFORM" --build-arg NODE_VERSION="$NODE_VERSION" \
+            --label org.opencontainers.image.source=https://github.com/SeanRiggs/pi-weather-station \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --label org.opencontainers.image.licenses=MIT \
+            -t "$IMAGE:sha-$GITHUB_SHA-$ARCH" .
+      - name: Check runtime and persistent settings
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -eu
+          trap 'docker rm -f wx-ci >/dev/null 2>&1 || true; docker volume rm wx-ci-data >/dev/null 2>&1 || true' EXIT
+          docker volume create wx-ci-data
+          docker run -d --name wx-ci -p 127.0.0.1:8080:8080 -v wx-ci-data:/data "$IMAGE:sha-$GITHUB_SHA-$ARCH"
+          node tests/docker-smoke.cjs write
+          test "$(docker exec wx-ci id -u)" = 1000
+          docker rm -f wx-ci
+          docker run -d --name wx-ci -p 127.0.0.1:8080:8080 -v wx-ci-data:/data "$IMAGE:sha-$GITHUB_SHA-$ARCH"
+          node tests/docker-smoke.cjs read
+      - name: Exercise stack through Portainer CE
+        if: matrix.arch == 'amd64'
+        env:
+          WEATHER_IMAGE: ${{ env.IMAGE }}:sha-${{ github.sha }}-amd64
+        run: node tests/portainer-smoke.cjs
+      - name: Push tested platform image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:sha-$GITHUB_SHA-$ARCH"
+      - uses: actions/upload-artifact@v7.0.2
+        if: always() && matrix.arch == 'amd64'
+        with:
+          name: portainer-stack-verification
+          path: test-results/portainer/
+          if-no-files-found: ignore
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Assemble immutable release tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          VERSION="$(node -p 'require("./package.json").version')"
+          if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+            echo "Release tag already exists. Bump package version for a new release; existing tags are not replaced."
+            exit 1
+          fi
+          docker buildx imagetools create -t "$IMAGE:$VERSION" \
+            "$IMAGE:sha-$GITHUB_SHA-amd64" "$IMAGE:sha-$GITHUB_SHA-arm64" "$IMAGE:sha-$GITHUB_SHA-armv7"
+          docker buildx imagetools inspect "$IMAGE:$VERSION" --raw > image-manifest.json
+          node -e 'const m=require("./image-manifest.json"); const p=m.manifests.map(x=>[x.platform.os,x.platform.architecture,x.platform.variant].filter(Boolean).join("/")); for(const v of ["linux/amd64","linux/arm64","linux/arm/v7"]) if(!p.includes(v)) throw Error("Missing "+v); console.log(p.join("\n"))'
+          printf '%s\n' "$IMAGE:$VERSION" > published-image.txt
+      - name: Check anonymous registry access
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          mkdir -p "$RUNNER_TEMP/anonymous-docker"
+          if DOCKER_CONFIG="$RUNNER_TEMP/anonymous-docker" docker manifest inspect "$IMAGE:$VERSION" > anonymous-manifest.json; then
+            echo "Public anonymous image access verified." | tee registry-status.txt
+          else
+            echo "Image published, but anonymous access is not yet verified. Set the GitHub package visibility to Public before advertising the Portainer quick start." | tee registry-status.txt
+          fi
+          cat registry-status.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: published-container-manifest
+          path: |
+            image-manifest.json
+            published-image.txt
+            registry-status.txt

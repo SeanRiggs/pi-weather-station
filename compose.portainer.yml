@@ -1,0 +1,16 @@
+# Portainer: Stacks > Add stack > Web editor.
+# Set WEATHER_HOST and DASHBOARD_PASSWORD in Environment variables below the editor.
+services:
+  weather-station:
+    image: ${WEATHER_IMAGE:-ghcr.io/seanriggs/pi-weather-station:3.1.0}
+    ports:
+      - "${WEATHER_PORT:-8080}:8080"
+    environment:
+      ALLOWED_HOSTS: "localhost,127.0.0.1,[::1],${WEATHER_HOST:?Set WEATHER_HOST to your server IP or hostname without a scheme or port}"
+      DASHBOARD_PASSWORD: "${DASHBOARD_PASSWORD:?Set a unique dashboard password}"
+    volumes:
+      - weather-data:/data
+    restart: unless-stopped
+
+volumes:
+  weather-data:
