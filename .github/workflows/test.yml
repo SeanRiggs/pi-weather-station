@@ -83,3 +83,14 @@ jobs:
           docker rm -f wx-ci
           docker run -d --name wx-ci -p 127.0.0.1:8080:8080 -v wx-ci-data:/data pi-weather-station:ci
           node tests/docker-smoke.cjs read
+      - name: Verify the image-only stack through Portainer CE
+        if: matrix.platform == 'linux/amd64'
+        env:
+          WEATHER_IMAGE: pi-weather-station:ci
+        run: node tests/portainer-smoke.cjs
+      - uses: actions/upload-artifact@v7.0.2
+        if: always() && matrix.platform == 'linux/amd64'
+        with:
+          name: portainer-stack-verification
+          path: test-results/portainer/
+          if-no-files-found: ignore

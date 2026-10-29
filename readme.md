@@ -12,6 +12,10 @@ Turn a Raspberry Pi touchscreen, spare monitor, or desktop browser into a weathe
 
 **Already running an older version?** Start with the [upgrade guide](UPGRADING.md) to preserve your settings, especially if your Docker installation mounts a volume over `/app`.
 
+### Portainer
+
+A paste-in stack and step-by-step [Portainer guide](docs/PORTAINER.md) are prepared for Docker Standalone. See the guide's release-activation status before using the published image. The source-build options below remain available.
+
 ### Docker Compose
 
 For a fresh installation, install Git and Docker with Compose v2, then run:
@@ -82,6 +86,7 @@ The five-hour run used simulated providers and tiles, plus four successful live 
 
 | I want to… | Start here |
 | --- | --- |
+| Deploy through Portainer's Web editor | [Portainer guide](docs/PORTAINER.md) |
 | Upgrade an existing installation safely | [Upgrade guide](UPGRADING.md) |
 | Choose a Docker architecture or understand image tags | [Docker guide](Docker%20Image/Docker-ReadMe.md) |
 | Choose providers or understand free-service limits | [Provider guide](docs/PROVIDERS.md) |

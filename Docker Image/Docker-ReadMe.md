@@ -1,5 +1,7 @@
 # Docker deployment
 
+For Portainer's Web editor, use the separate [Portainer guide](../docs/PORTAINER.md) and [image-only stack](../compose.portainer.yml). Check the guide's release-activation status first. The instructions below build locally from source.
+
 Use the repository-root [Compose file](../compose.yml) and [Dockerfile](../Dockerfile) for a reproducible source build:
 
 ```sh

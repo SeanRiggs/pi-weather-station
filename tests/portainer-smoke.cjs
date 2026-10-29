@@ -2,6 +2,8 @@
 // Tests the same Compose text that users paste into Portainer's Web editor.
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { setTimeout: delay } = require('node:timers/promises');
@@ -10,7 +12,7 @@ const app = 'http://127.0.0.1:8080';
 const stackName = 'weather-portainer-ci';
 const password = randomBytes(24).toString('hex');
 const report = { startedAt: new Date().toISOString(), checks: [], status: 'running' };
-let token, endpoint, stack, portainerStarted = false;
+let token, endpoint, stack, secretDir, portainerStarted = false;
 function docker(args, options = {}) {
   return execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim();
 }
@@ -44,9 +46,13 @@ async function ready() {
     assert.throws(() => docker(['compose', '-f', 'compose.portainer.yml', 'config', '--quiet'], { env: missingEnv }));
     docker(['compose', '-f', 'compose.portainer.yml', 'config', '--quiet'], { env: { ...process.env, WEATHER_HOST: '127.0.0.1', DASHBOARD_PASSWORD: password } });
     report.checks.push('Compose rejects missing required settings and accepts complete settings');
+    secretDir = await fs.mkdtemp(path.join(os.tmpdir(), 'portainer-ci-'));
+    const secretPath = path.join(secretDir, 'admin-password');
+    await fs.writeFile(secretPath, password, { mode: 0o600 });
     docker(['run', '-d', '--name', 'portainer-ci', '-p', '127.0.0.1:9000:9000',
       '-v', '/var/run/docker.sock:/var/run/docker.sock', '-v', 'portainer-ci-data:/data',
-      'portainer/portainer-ce:lts', '--http-enabled']);
+      '-v', secretPath + ':/run/admin-password:ro',
+      'portainer/portainer-ce:lts', '--http-enabled', '--admin-password-file', '/run/admin-password']);
     portainerStarted = true;
     let status;
     for (let i = 0; i < 90; i++) {
@@ -55,7 +61,6 @@ async function ready() {
     assert.ok(status, 'Portainer did not start');
     report.portainerVersion = status.Version;
     report.portainerImage = docker(['image', 'inspect', 'portainer/portainer-ce:lts', '--format', '{{json .RepoDigests}}']);
-    await request('/users/admin/init', { method: 'POST', ...json({ Username: 'admin', Password: password }) });
     token = (await request('/auth', { method: 'POST', ...json({ Username: 'admin', Password: password }) })).jwt;
     const form = new FormData();
     form.set('Name', 'local-ci'); form.set('EndpointCreationType', '1'); form.set('URL', 'unix:///var/run/docker.sock');
@@ -103,6 +108,7 @@ async function ready() {
     await fs.writeFile('test-results/portainer/report.json', JSON.stringify(report, null, 2));
     if (stack && endpoint) await request('/stacks/' + stack.Id + '?endpointId=' + endpoint, { method: 'DELETE' }).catch(() => {});
     if (portainerStarted) { try { docker(['rm', '-f', 'portainer-ci']); } catch {} }
+    if (secretDir) await fs.rm(secretDir, { recursive: true, force: true });
     for (const name of [stackName + '_weather-data', 'portainer-ci-data']) { try { docker(['volume', 'rm', name]); } catch {} }
   }
 })();
