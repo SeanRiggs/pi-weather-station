@@ -1,6 +1,6 @@
 # Docker deployment
 
-For Portainer's Web editor, use the separate [Portainer guide](../docs/PORTAINER.md) and [image-only stack](../compose.portainer.yml). Check the guide's release-activation status first. The instructions below build locally from source.
+For Portainer's Web editor, use the separate [Portainer guide](../docs/PORTAINER.md) and [image-only stack](../compose.portainer.yml). The public GHCR image does not require a registry login. The instructions below build locally from source.
 
 Use the repository-root [Compose file](../compose.yml) and [Dockerfile](../Dockerfile) for a reproducible source build:
 
@@ -28,7 +28,7 @@ A 64-bit OS is recommended on capable Raspberry Pi hardware. The ARMv7 path uses
 
 The folders `Docker YML AMD64`, `Docker YML ARM`, and `Docker YML ARMv7` remain as compatibility examples. Their build contexts point back to this repository. Prefer the root Compose file for new setups.
 
-**Registry status:** this refresh adds source builds and CI. It does not publish version 3 to Docker Hub. Older `seanriggs/pi-weather-station` tags are legacy images and must not be described as containing these changes without a separate verified registry release.
+**Registry status:** `ghcr.io/seanriggs/pi-weather-station:3.1.0` is published for AMD64/ARM64/ARMv7 with anonymous access verified. It is the image used by the Portainer stack. This does not publish version 3 to Docker Hub. Older `seanriggs/pi-weather-station` tags are legacy images and must not be described as containing these changes without a separate verified registry release.
 
 Read [UPGRADING.md](../UPGRADING.md) before changing an existing container, especially if it uses `appdata:/app`. There is a settings export/import procedure that preserves the old volume and refuses to overwrite a new settings file.
 

@@ -2,7 +2,7 @@
 
 [Back to the README](../readme.md) · [Upgrade an existing installation](../UPGRADING.md)
 
-> Release activation pending: the maintainer must enable public access to the GitHub container package and verify an anonymous pull before this becomes the recommended installation path. The instructions below are prepared for that public release.
+**Available image:** `ghcr.io/seanriggs/pi-weather-station:3.1.0`. Published October 29, 2026, for AMD64, ARM64, and ARMv7; anonymous registry access is verified. No GitHub or Docker Hub login is needed.
 
 This setup is for **Portainer with a Docker Standalone environment** on Linux. It pulls a prebuilt image, so you do not need Git, Node.js, a terminal, or a local source checkout. Docker Swarm and Kubernetes are outside this guide.
 
@@ -78,7 +78,7 @@ For an older Docker Hub installation, follow [UPGRADING.md](../UPGRADING.md) bef
 | Problem | Fix |
 | --- | --- |
 | Deployment asks for a missing variable | Add both required rows under Environment variables, then deploy again. |
-| `denied` or `unauthorized` while pulling the image | Check the release-activation notice above. Public users should not need GitHub credentials. This is different from the dashboard's browser login. |
+| `denied` or `unauthorized` while pulling the image | Check the image name/version and the host's Internet access. This image is public; no GitHub login is required. If Portainer has stale GHCR credentials, check its selected registries. This is separate from the dashboard login. |
 | Port is already allocated | Set `WEATHER_PORT` to an unused port and use it in your browser URL. |
 | Browser cannot connect | Confirm the container is running, the selected Docker host address is correct, and the host firewall permits the port from your private network. |
 | `Host is not allowed` | Match `WEATHER_HOST` to the address you typed into the browser, then update the stack. Do not add a scheme or port to the variable. |
@@ -95,6 +95,6 @@ The **Build and publish Portainer image** workflow uses the repository's built-i
 2. Run the publishing workflow manually from `master`. It builds and smoke-tests AMD64, ARM64, and ARMv7, exercises the stack through Portainer CE, then assembles the versioned manifest. An existing release tag is never overwritten.
 3. For the first package only, open [the package page](https://github.com/users/SeanRiggs/packages/container/package/pi-weather-station), then **Package settings → Danger Zone → Change visibility → Public**. GitHub requires confirmation of the package name. This makes the built image publicly downloadable.
 4. Verify an anonymous pull of the published version. The workflow records publication and anonymous access separately; a successful publication alone does not establish public availability.
-5. Update the stack's default version and this guide together. Only remove the release-activation notice after public access is verified.
+5. Update the stack's default version and this guide together. Verify public access before advertising a new release.
 
-Regular CI uses a locally built image to validate the Portainer deployment and saved settings without publishing. Publishing is a separate, intentional release action. Docker Hub tags are unaffected.
+Regular CI validates Portainer deployment and saved settings with both a locally built image and an anonymous pull of the documented release, without publishing. Publishing is a separate, intentional release action. Docker Hub tags are unaffected.

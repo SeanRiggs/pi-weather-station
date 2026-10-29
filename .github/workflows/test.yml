@@ -87,7 +87,19 @@ jobs:
         if: matrix.platform == 'linux/amd64'
         env:
           WEATHER_IMAGE: pi-weather-station:ci
-        run: node tests/portainer-smoke.cjs
+        run: |
+          node tests/portainer-smoke.cjs
+          cp test-results/portainer/report.json test-results/portainer/report-local-image.json
+      - name: Verify anonymous pull and Portainer deployment of the documented release
+        if: matrix.platform == 'linux/amd64'
+        env:
+          WEATHER_HOST: localhost
+          DASHBOARD_PASSWORD: disposable-compose-validation-only
+        run: |
+          export WEATHER_IMAGE="$(docker compose -f compose.portainer.yml config --images)"
+          DOCKER_CONFIG="$(mktemp -d)" docker pull "$WEATHER_IMAGE"
+          node tests/portainer-smoke.cjs
+          cp test-results/portainer/report.json test-results/portainer/report-published-image.json
       - uses: actions/upload-artifact@v7.0.2
         if: always() && matrix.platform == 'linux/amd64'
         with:
