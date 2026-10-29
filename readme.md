@@ -12,6 +12,10 @@ Turn a Raspberry Pi touchscreen, spare monitor, or desktop browser into a weathe
 
 **Already running an older version?** Start with the [upgrade guide](UPGRADING.md) to preserve your settings, especially if your Docker installation mounts a volume over `/app`.
 
+### Portainer
+
+**No terminal or source build needed:** open **Stacks → Add stack → Web editor**, paste [compose.portainer.yml](compose.portainer.yml), and set your server address and dashboard password under Environment variables. The [Portainer guide](docs/PORTAINER.md) walks through each step. The public image automatically supports AMD64, ARM64, and ARMv7.
+
 ### Docker Compose
 
 For a fresh installation, install Git and Docker with Compose v2, then run:
@@ -24,7 +28,7 @@ docker compose up -d --build
 
 Open **http://127.0.0.1:8080 on the machine running Docker**. The image builds locally and settings persist in a named volume. The default port is available only on that host; see [access configuration](docs/OPERATIONS.md#configuration) for another device.
 
-This source build is the current installation path. **Existing Docker Hub tags have not been republished with this refresh.** See the [Docker guide](Docker%20Image/Docker-ReadMe.md) for details. On ARMv7 / 32-bit Raspberry Pi OS, use `NODE_VERSION=22 docker compose up -d --build`; AMD64 and ARM64 use Node 24 by default. ARMv6 is not supported by these builds.
+This builds the image on your own machine; Portainer users can use the prebuilt GHCR image above. **Existing Docker Hub tags have not been republished with this refresh.** See the [Docker guide](Docker%20Image/Docker-ReadMe.md) for details. On ARMv7 / 32-bit Raspberry Pi OS, use `NODE_VERSION=22 docker compose up -d --build`; AMD64 and ARM64 use Node 24 by default. ARMv6 is not supported by these builds.
 
 ### Run directly with Node.js
 
@@ -82,6 +86,7 @@ The five-hour run used simulated providers and tiles, plus four successful live 
 
 | I want to… | Start here |
 | --- | --- |
+| Deploy through Portainer's Web editor | [Portainer guide](docs/PORTAINER.md) |
 | Upgrade an existing installation safely | [Upgrade guide](UPGRADING.md) |
 | Choose a Docker architecture or understand image tags | [Docker guide](Docker%20Image/Docker-ReadMe.md) |
 | Choose providers or understand free-service limits | [Provider guide](docs/PROVIDERS.md) |
