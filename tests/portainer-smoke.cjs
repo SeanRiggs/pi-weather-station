@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
+const http = require('node:http');
 const path = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
@@ -28,6 +29,12 @@ async function request(route, options = {}) {
 }
 function json(body) { return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }; }
 const auth = { Authorization: 'Basic ' + Buffer.from('weather:' + password).toString('base64') };
+function hostStatus(host) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(app, { headers: { ...auth, Host: host } }, res => { res.resume(); resolve(res.statusCode); });
+    req.on('error', reject); req.setTimeout(10000, () => req.destroy(new Error('Host probe timed out')));
+  });
+}
 async function ready() {
   for (let i = 0; i < 60; i++) {
     if (await fetch(app + '/healthz').then(r => r.ok).catch(() => false)) return;
@@ -66,7 +73,7 @@ async function ready() {
     form.set('Name', 'local-ci'); form.set('EndpointCreationType', '1'); form.set('URL', 'unix:///var/run/docker.sock');
     endpoint = (await request('/endpoints', { method: 'POST', body: form })).Id;
     const env = [
-      { name: 'WEATHER_HOST', value: '127.0.0.1' },
+      { name: 'WEATHER_HOST', value: 'weather-ci.test' },
       { name: 'DASHBOARD_PASSWORD', value: password },
       { name: 'WEATHER_IMAGE', value: process.env.WEATHER_IMAGE },
     ];
@@ -78,7 +85,9 @@ async function ready() {
     assert.equal((await fetch(app)).status, 401);
     const html = await (await fetch(app, { headers: auth })).text();
     assert.match(html, /bundle\.[a-f0-9]+\.js/);
-    assert.equal((await fetch(app, { headers: { ...auth, Host: 'unexpected.invalid' } })).status, 403);
+    // Node fetch normalizes Host; use HTTP to send the exact header under test.
+    assert.equal(await hostStatus('weather-ci.test'), 200);
+    assert.equal(await hostStatus('unexpected.invalid'), 403);
     report.checks.push('Dashboard requires its password, serves the built UI, and rejects unexpected hosts');
     const saved = await fetch(app + '/settings', {
       method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' },
