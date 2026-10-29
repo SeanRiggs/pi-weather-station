@@ -1,7 +1,5 @@
 name: Build and publish Portainer image
 on:
-  push:
-    branches: [feature/portainer-stack]
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,7 +10,7 @@ env:
   IMAGE: ghcr.io/seanriggs/pi-weather-station
 jobs:
   build:
-    if: github.repository == 'SeanRiggs/pi-weather-station'
+    if: github.repository == 'SeanRiggs/pi-weather-station' && github.ref == 'refs/heads/master'
     strategy:
       fail-fast: false
       matrix:
